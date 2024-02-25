@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: 18
       - name: Install dependencies for the twilio function
-        run: npm ci
+        run: npm install --omit=dev
       - name: twilio-cli
         run: npm install -g twilio-cli
       - name: twilio serverless
