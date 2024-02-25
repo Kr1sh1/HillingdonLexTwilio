@@ -28,5 +28,19 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: twilio serverless:deploy --environment ${{ github.ref_name	}}
-
+        run: twilio serverless:deploy --environment ${{ github.ref_name	}} > deployment_output.txt
+      - name: Update phone number url
+        env:
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_API_KEY: ${{ secrets.TWILIO_API_KEY }}
+          TWILIO_API_SECRET: ${{ secrets.TWILIO_API_SECRET }}
+        run: |
+          URL=$(grep -o 'https://[a-zA-Z0-9.-]*\.twil\.io/transcribe' deployment_output.txt)
+          if [[ ${{ github.ref_name }} == "main"  ]]; then
+            phone_number="+447862132308"
+          elif [[ ${{ github.ref_name }} == "dev1"  ]]; then
+            phone_number="+447488890677"
+          else
+            phone_number="+447488898879"
+          fi
+          twilio phone-numbers update $phone_number --voice-url=$URL --voice-method=POST
