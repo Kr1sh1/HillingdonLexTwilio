@@ -1,0 +1,8 @@
+{
+  "commands": {
+    "deploy": {
+      "loadSystemEnv": true,
+      "env": ".env.twilio_environment"
+    }
+  }
+}
