@@ -2,7 +2,12 @@ name: Twilio Continuous Deployment
 
 on:
   push:
-    branches: [ main, dev1, dev2 ]
+    branches:
+      - main
+      - dev1
+      - dev2
+    paths-ignore:
+      - 'README.md'
 
 jobs:
   deploy:
