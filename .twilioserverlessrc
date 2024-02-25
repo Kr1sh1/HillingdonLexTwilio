@@ -2,7 +2,8 @@
   "commands": {
     "deploy": {
       "loadSystemEnv": true,
-      "env": ".env.twilio_environment"
+      "env": ".env.twilio_environment",
+      "overrideExistingProject": true
     }
   }
 }
