@@ -1,0 +1,29 @@
+name: Twilio Continuous Deployment
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Install dependencies for the twilio function
+        run: npm ci
+      - name: twilio-cli
+        run: npm install -g twilio-cli
+      - name: twilio serverless
+        run: twilio plugins:install @twilio-labs/plugin-serverless@v3
+      - name: twilio serverless:deploy
+        env:
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_API_KEY: ${{ secrets.TWILIO_API_KEY }}
+          TWILIO_API_SECRET: ${{ secrets.TWILIO_API_SECRET }}
+        run: twilio serverless:deploy
+
