@@ -1,4 +1,4 @@
-const { Configuration, OpenAIApi } = require("openai");
+const OpenAI = require("openai");
 const Twilio = require('twilio');
 
 const {
@@ -8,8 +8,7 @@ const {
 } = require("@aws-sdk/client-s3");
 
 exports.handler = async function (context, event, callback) {
-  const configuration = new Configuration({ apiKey: context.OPENAI_API_KEY });
-  const openai = new OpenAIApi(configuration);
+  const openai = new OpenAI({ apiKey: context.OPENAI_API_KEY });
   const s3Client = new S3Client(
     {
       region: context.AWS_REGION,
@@ -95,9 +94,9 @@ exports.handler = async function (context, event, callback) {
 
   async function createChatCompletion(messages) {
     try {
-      const completion = await openai.createChatCompletion({
+      const completion = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
-        messages: messages,
+        messages,
         temperature: 0.8,
         max_tokens: 100,
       });
@@ -119,7 +118,7 @@ exports.handler = async function (context, event, callback) {
         callback(null, response);
       }
 
-      return completion.data.choices[0].message.content;
+      return completion.choices[0].message.content;
     } catch (error) {
       if (error.code === "ETIMEDOUT" || error.code === "ESOCKETTIMEDOUT") {
         console.error("Error: OpenAI API request timed out.");
