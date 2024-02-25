@@ -145,7 +145,7 @@ exports.handler = async function (context, event, callback) {
   async function uploadToS3(logs, logFileName) {
     const bucketName = 'engelbartchatlogs1';
 
-    existingContent = await s3Client.send(
+    const existingContent = await s3Client.send(
       new GetObjectCommand({
         Bucket: bucketName,
         Key: logFileName,
