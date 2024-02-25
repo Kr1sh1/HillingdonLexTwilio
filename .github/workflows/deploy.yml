@@ -2,7 +2,7 @@ name: Twilio Continuous Deployment
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, dev1, dev2 ]
 
 jobs:
   deploy:
@@ -28,5 +28,5 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: twilio serverless:deploy
+        run: twilio serverless:deploy --environment ${{ github.ref_name	}}
 
