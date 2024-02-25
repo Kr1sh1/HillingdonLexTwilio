@@ -20,11 +20,13 @@ jobs:
         with:
           node-version: 18
       - name: Install dependencies for the twilio function
-        run: npm install --omit=dev
+        run: npm install
       - name: twilio-cli
         run: npm install -g twilio-cli
       - name: twilio serverless
         run: twilio plugins:install @twilio-labs/plugin-serverless@v3
+      - name: Transpile with Babel ESM syntax to CJS
+        run: npm run transpile
       - name: twilio serverless:deploy
         env:
           TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}

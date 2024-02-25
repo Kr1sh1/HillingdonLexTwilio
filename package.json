@@ -3,9 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "twilio-run",
-    "deploy": "twilio-run deploy"
+    "transpile": "babel functions --out-dir functions --no-comments"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.521.0",
@@ -14,6 +12,9 @@
     "twilio": "^3.56"
   },
   "devDependencies": {
+    "@babel/cli": "^7.23.9",
+    "@babel/core": "^7.23.9",
+    "@babel/preset-env": "^7.23.9",
     "twilio-run": "^3.5.4"
   }
 }

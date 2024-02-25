@@ -1,13 +1,9 @@
-const OpenAI = require("openai");
-const Twilio = require('twilio');
+import OpenAI from "openai";
+import { twiml, Response } from 'twilio';
 
-const {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-} = require("@aws-sdk/client-s3");
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 
-exports.handler = async function (context, event, callback) {
+export async function handler (context, event, callback) {
   const openai = new OpenAI({ apiKey: context.OPENAI_API_KEY });
   const s3Client = new S3Client(
     {
@@ -18,8 +14,8 @@ exports.handler = async function (context, event, callback) {
       }
     }
   );
-  const twiml = new Twilio.twiml.VoiceResponse();
-  const response = new Twilio.Response();
+  const twiml_response = new twiml.VoiceResponse();
+  const response = new Response();
 
   const cookieValue = event.request.cookies.convo;
   const conversation = cookieValue ?
@@ -51,20 +47,20 @@ exports.handler = async function (context, event, callback) {
     conversation.shift();
   }
 
-  twiml.say({
+  twiml_response.say({
     voice: "Polly.Joanna-Neural",
   },
     cleanedAiResponse
   );
 
-  twiml.redirect({
+  twiml_response.redirect({
     method: "POST",
   },
     `/transcribe`
   );
 
   response.appendHeader("Content-Type", "application/xml");
-  response.setBody(twiml.toString());
+  response.setBody(twiml_response.toString());
 
   const newCookieValue = encodeURIComponent(
     JSON.stringify(conversation)
@@ -103,18 +99,18 @@ exports.handler = async function (context, event, callback) {
 
       if (completion.status === 500) {
         console.error("Error: OpenAI API returned a 500 status code.");
-        twiml.say({
+        twiml_response.say({
           voice: "Polly.Joanna-Neural",
         },
           "Oops, looks like I got an error from the OpenAI API on that request. Let's try that again."
         );
-        twiml.redirect({
+        twiml_response.redirect({
           method: "POST",
         },
           `/transcribe`
         );
         response.appendHeader("Content-Type", "application/xml");
-        response.setBody(twiml.toString());
+        response.setBody(twiml_response.toString());
         callback(null, response);
       }
 
@@ -122,18 +118,18 @@ exports.handler = async function (context, event, callback) {
     } catch (error) {
       if (error.code === "ETIMEDOUT" || error.code === "ESOCKETTIMEDOUT") {
         console.error("Error: OpenAI API request timed out.");
-        twiml.say({
+        twiml_response.say({
           voice: "Polly.Joanna-Neural",
         },
           "I'm sorry, but it's taking me a little bit too long to respond. Let's try that again, one more time."
         );
-        twiml.redirect({
+        twiml_response.redirect({
           method: "POST",
         },
           `/transcribe`
         );
         response.appendHeader("Content-Type", "application/xml");
-        response.setBody(twiml.toString());
+        response.setBody(twiml_response.toString());
         callback(null, response);
       } else {
         console.error("Error during OpenAI API request:", error);
@@ -167,5 +163,5 @@ exports.handler = async function (context, event, callback) {
       })
     );
   }
-};
+}
 
