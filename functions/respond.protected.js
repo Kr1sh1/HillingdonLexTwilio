@@ -8,7 +8,7 @@ const {
 } = require("@aws-sdk/client-s3");
 
 exports.handler = async function (context, event, callback) {
-  const configuration = new Configuration({ apiKey: context.INNOKENTII_OPENAI_API_KEY });
+  const configuration = new Configuration({ apiKey: context.OPENAI_API_KEY });
   const openai = new OpenAIApi(configuration);
   const s3Client = new S3Client(
     {
