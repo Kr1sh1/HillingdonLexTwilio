@@ -7,6 +7,8 @@ Every JavaScript function under `/functions` is deployed individually to a uniqu
 
 The `transcribe` function is invoked when an inbound phone call is received, this behaviour is currently hardcoded in the deploy workflow but can become configurable.
 
+The `statusCallback` function is invoked whenever the status of a phone call changes. Again, this is hardcoded in the deploy workflow. Typically we are only interested in when the phone call is completed successfully.
+
 ## Getting Started
 
 ### Installation
