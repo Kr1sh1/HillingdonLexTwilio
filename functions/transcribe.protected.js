@@ -1,11 +1,12 @@
 import { twiml, Response } from 'twilio';
+import moment from 'moment';
 
 export function handler (context, event, callback) {
     // Create a TwiML Voice Response object to build the response
     const twiml_response = new twiml.VoiceResponse();
 
     // If no previous conversation is present, or if the conversation is empty, start the conversation
-    if (!event.request.cookies.convo) {
+    if (!event.request.cookies.initiated) {
         // Greet the user with a message using AWS Polly Neural voice
         twiml_response.say({
             voice: 'Polly.Joanna-Neural',
@@ -33,9 +34,10 @@ export function handler (context, event, callback) {
 
     // If this is the beginning of the call
     if (!event.request.cookies.initiated) {
+        const callStartTimestamp = encodeURIComponent(moment().utc().format('ddd, DD MMM YYYY HH:mm:ss ZZ'));
+
         response.setCookie('initiated', true, ['Path=/']);
-        const logFileName = encodeURIComponent(`${event.From || event.phoneNumber}_${Date.now()}.json`);
-        response.setCookie('logFileName', logFileName, ['Path=/']);
+        response.setCookie('callStartTimestamp', callStartTimestamp, ['Path=/']);
     }
 
     // Return the response to Twilio
