@@ -36,18 +36,21 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: twilio serverless:deploy --environment ${{ github.ref_name	}} > deployment_output.txt
-      - name: Update phone number url
+      - name: Update phone number voice and statusCallback urls
         env:
           TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
           TWILIO_API_KEY: ${{ secrets.TWILIO_API_KEY }}
           TWILIO_API_SECRET: ${{ secrets.TWILIO_API_SECRET }}
         run: |
-          URL=$(grep -o 'https://[a-zA-Z0-9.-]*\.twil\.io/transcribe' deployment_output.txt)
-          if [[ ${{ github.ref_name }} == "main"  ]]; then
-            phone_number="+447862132308"
-          elif [[ ${{ github.ref_name }} == "dev1"  ]]; then
-            phone_number="+447488890677"
-          else
-            phone_number="+447488898879"
-          fi
-          twilio phone-numbers update $phone_number --voice-url=$URL --voice-method=POST
+          voiceURL=$(grep -o 'https://[a-zA-Z0-9.-]*\.twil\.io/transcribe' deployment_output.txt)
+          statusCallbackURL=$(grep -o 'https://[a-zA-Z0-9.-]*\.twil\.io/statusCallback' deployment_output.txt)
+
+          declare -A branchToPhoneSid
+          branchToPhoneSid["main"]=PNd23a615664eeb581094e5e19c63fc8a4
+          branchToPhoneSid["dev1"]=PNd1fa4d553990a47088ab733d7330a84e
+          branchToPhoneSid["dev2"]=PNffbbee3da8cbbc25cb67ecfa1ebab003
+
+          curl --data-urlencode "StatusCallback=${statusCallbackURL}" \
+               --data-urlencode "VoiceUrl=${voiceURL}" \
+               -u "${TWILIO_API_KEY}:${TWILIO_API_SECRET}" \
+               "https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/IncomingPhoneNumbers/${branchToPhoneSid[${{ github.ref_name }}]}.json"
