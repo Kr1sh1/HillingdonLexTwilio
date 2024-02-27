@@ -39,12 +39,13 @@ export async function handler (context, event, callback) {
 
   conversation.push(assistantLog);
 
+  let logFileName;
   if (!event.request.cookies.logFileName) {
     const callStartTimestamp = decodeURIComponent(event.request.cookies.callStartTimestamp)
-    const logFileName = `${event.From || event.phoneNumber}_${callStartTimestamp}.json`
+    logFileName = `${event.From || event.phoneNumber}_${callStartTimestamp}.json`
     response.setCookie('logFileName', encodeURIComponent(logFileName), ['Path=/']);
   } else {
-    const logFileName = decodeURIComponent(event.request.cookies.logFileName)
+    logFileName = decodeURIComponent(event.request.cookies.logFileName)
   }
 
   await uploadToS3([userLog, assistantLog], logFileName);
