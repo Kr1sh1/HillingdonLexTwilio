@@ -11,7 +11,7 @@ export function handler (context, event, callback) {
         twiml_response.say({
             voice: 'Polly.Joanna-Neural',
         },
-            "Hey! I'm HillingdonLex, a chatbot created to help the residents of Hillingdon. You're calling the dev 1 branch."
+            "Hey! I'm HillingdonLex, a chatbot created to help the residents of Hillingdon. What would you like to talk about today? I could help you order recycling bags, report a street that needs cleaning, request a housing repair or make an adult social care query among other things."
         );
     }
 
