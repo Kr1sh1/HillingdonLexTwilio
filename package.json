@@ -3,7 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "transpile": "babel functions --out-dir functions --no-comments"
+    "transpile": "babel functions --out-dir functions --no-comments",
+    "test": "jest"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.521.0",
@@ -16,6 +17,10 @@
     "@babel/cli": "^7.23.9",
     "@babel/core": "^7.23.9",
     "@babel/preset-env": "^7.23.9",
-    "twilio-run": "^3.5.4"
+    "twilio-run": "^3.5.4",
+    "jest": "^26.0.1"
+  },
+  "jest": {
+    "testEnvironment": "node"
   }
 }
