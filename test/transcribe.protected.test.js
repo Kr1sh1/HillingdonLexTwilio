@@ -55,7 +55,7 @@ describe('handler function', () => {
         tokenFunction({}, event, callback);
     });
 
-    test('callStartTimestamp cookies is set correctly and given correct attributes', (done) => {
+    test('callStartTimestamp cookie is set correctly and given correct attributes', (done) => {
         const event = {
             request: {
                 cookies: {
@@ -79,29 +79,7 @@ describe('handler function', () => {
         tokenFunction({}, event, callback);
     });
 
-    test('callStartTimestamp cookies is set correctly and given correct attributes', (done) => {
-        const event = {
-            request: {
-                cookies: {
-                    initiated: false
-                }
-            }
-        };
-        const tokenFunction = require('../functions/transcribe.protected').handler;
-
-        const callStartTimestamp = encodeURIComponent(moment().utc().format('ddd, DD MMM YYYY HH:mm:ss ZZ'));
-
-        const callback = (err, response) => {
-            try {
-                expect(response._cookies['callStartTimestamp']).toBe(callStartTimestamp);
-                expect(response._attributes['callStartTimestamp']).toContain('Path=/');
-                done();
-            } catch (error) {
-                done(error);
-            }
-        };
-        tokenFunction({}, event, callback);
-    });
+    
 
     test('response body is set to generated TwiML response', (done) => {
         const event = {
