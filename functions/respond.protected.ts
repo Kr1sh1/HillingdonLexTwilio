@@ -1,9 +1,26 @@
 import OpenAI from "openai";
-import { twiml, Response } from 'twilio';
-
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
+import { RespondServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
 
-export async function handler (context, event, callback) {
+enum Role {
+  SYSTEM = "system",
+  ASSISTANT = "assistant",
+  USER = "user",
+}
+
+interface Message {
+  role: Role;
+  content: string;
+}
+
+type Conversation = Message[];
+
+export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, RespondServerlessEventObject> = async function(
+  context,
+  event,
+  callback
+) {
   const openai = new OpenAI({ apiKey: context.OPENAI_API_KEY });
   const s3Client = new S3Client(
     {
@@ -14,38 +31,39 @@ export async function handler (context, event, callback) {
       }
     }
   );
-  const twiml_response = new twiml.VoiceResponse();
-  const response = new Response();
+  const twiml_response = new Twilio.twiml.VoiceResponse();
+  const response = new Twilio.Response();
 
-  const cookieValue = event.request.cookies.convo;
-  const conversation = cookieValue ?
-    JSON.parse(decodeURIComponent(cookieValue)) :
+  const cookies = event.request.cookies;
+  const conversation: Conversation = cookies.convo ?
+    JSON.parse(decodeURIComponent(cookies.convo)) :
     [];
 
   const userLog = {
-    role: "user",
+    role: Role.USER,
     content: event.SpeechResult,
   };
 
   conversation.push(userLog);
 
   const aiResponse = await generateAIResponse(conversation);
+  if (!aiResponse) return;
   const cleanedAiResponse = aiResponse.replace(/^\w+:\s*/i, "").trim();
 
   const assistantLog = {
-    role: "assistant",
+    role: Role.ASSISTANT,
     content: cleanedAiResponse,
   };
 
   conversation.push(assistantLog);
 
   let logFileName;
-  if (!event.request.cookies.logFileName) {
-    const callStartTimestamp = decodeURIComponent(event.request.cookies.callStartTimestamp)
-    logFileName = `${event.From || event.phoneNumber}_${callStartTimestamp}.json`
+  if (!cookies.logFileName) {
+    const callStartTimestamp = decodeURIComponent(cookies.callStartTimestamp)
+    logFileName = `${event.From}_${callStartTimestamp}.json`
     response.setCookie('logFileName', encodeURIComponent(logFileName), ['Path=/']);
   } else {
-    logFileName = decodeURIComponent(event.request.cookies.logFileName)
+    logFileName = decodeURIComponent(cookies.logFileName)
   }
 
   await uploadToS3([userLog, assistantLog], logFileName);
@@ -74,20 +92,20 @@ export async function handler (context, event, callback) {
   );
   response.setCookie("convo", newCookieValue, ["Path=/"]);
 
-  callback(null, response);
+  return callback(null, response);
 
-  async function generateAIResponse(conversation) {
+  async function generateAIResponse(conversation: Conversation) {
     const messages = formatConversation(conversation);
     return await createChatCompletion(messages);
   }
 
-  function formatConversation(conversation) {
+  function formatConversation(conversation: Conversation) {
     const messages = [{
-      role: "system",
+      role: Role.SYSTEM,
       content: "You are a creative, funny, friendly and amusing AI assistant named Joanna. Please provide engaging but concise responses.",
     },
     {
-      role: "user",
+      role: Role.USER,
       content: "We are having a casual conversation over the telephone so please provide engaging but concise responses.",
     },
     ];
@@ -95,7 +113,7 @@ export async function handler (context, event, callback) {
     return messages.concat(conversation);
   }
 
-  async function createChatCompletion(messages) {
+  async function createChatCompletion(messages: Conversation) {
     try {
       const completion = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
@@ -104,31 +122,14 @@ export async function handler (context, event, callback) {
         max_tokens: 100,
       });
 
-      if (completion.status === 500) {
-        console.error("Error: OpenAI API returned a 500 status code.");
-        twiml_response.say({
-          voice: "Polly.Joanna-Neural",
-        },
-          "Oops, looks like I got an error from the OpenAI API on that request. Let's try that again."
-        );
-        twiml_response.redirect({
-          method: "POST",
-        },
-          `/transcribe`
-        );
-        response.appendHeader("Content-Type", "application/xml");
-        response.setBody(twiml_response.toString());
-        callback(null, response);
-      }
-
       return completion.choices[0].message.content;
     } catch (error) {
-      if (error.code === "ETIMEDOUT" || error.code === "ESOCKETTIMEDOUT") {
-        console.error("Error: OpenAI API request timed out.");
+      if (error instanceof OpenAI.APIError) {
+        console.error("Error: OpenAI API request errored out.");
         twiml_response.say({
           voice: "Polly.Joanna-Neural",
         },
-          "I'm sorry, but it's taking me a little bit too long to respond. Let's try that again, one more time."
+          "I'm sorry, something went wrong. Let's try that again, one more time."
         );
         twiml_response.redirect({
           method: "POST",
@@ -137,7 +138,7 @@ export async function handler (context, event, callback) {
         );
         response.appendHeader("Content-Type", "application/xml");
         response.setBody(twiml_response.toString());
-        callback(null, response);
+        return callback(null, response);
       } else {
         console.error("Error during OpenAI API request:", error);
         throw error;
@@ -145,7 +146,7 @@ export async function handler (context, event, callback) {
     }
   }
 
-  async function uploadToS3(logs, logFileName) {
+  async function uploadToS3(logs: Conversation, logFileName: string) {
     const bucketName = 'engelbartchatlogs1';
 
     const existingContent = await s3Client.send(
