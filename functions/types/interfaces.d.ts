@@ -35,4 +35,8 @@ export interface TwilioEnvironmentVariables extends EnvironmentVariables {
   AWS_REGION: string;
   AWS_ACCESS_KEY_ID: string;
   AWS_SECRET_ACCESS_KEY: string;
+  RDS_PASSWORD: string;
+  RDS_USER: string;
+  RDS_SERVER: string;
+  RDS_PORT: string;
 }
