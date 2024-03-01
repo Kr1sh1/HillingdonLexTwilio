@@ -19,15 +19,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
-      - name: Install dependencies for the twilio function
+      - name: Install dependencies
         run: npm install
-      - name: twilio-cli
+      - name: Compile TypeScript files to JavaScript
+        run: npm run build
+      - name: Install Twilio CLI
         run: npm install -g twilio-cli
-      - name: twilio serverless
+      - name: Install Twilio serverless plugin
         run: twilio plugins:install @twilio-labs/plugin-serverless@v3
-      - name: Transpile with Babel ESM syntax to CJS
-        run: npm run transpile
-      - name: twilio serverless:deploy
+      - name: Deploy
         env:
           TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
           TWILIO_API_KEY: ${{ secrets.TWILIO_API_KEY }}

@@ -3,7 +3,7 @@
 ## Project Structure
 Twilio Functions is a serverless environment.
 
-Every JavaScript function under `/functions` is deployed individually to a unique URL. An extension of `.protected.js` ensures the deployed function is only invokable by Twilio and not externally. Each function can reference each other relatively from under the `/functions` directory.
+Every TypeScript function under `/functions` is deployed individually to a unique URL. An extension of `.protected.ts` ensures the deployed function is only invokable by Twilio webhooks. Each function can reference each other relatively from under the `/functions` directory.
 
 The `transcribe` function is invoked when an inbound phone call is received, this behaviour is currently hardcoded in the deploy workflow but can become configurable.
 
@@ -21,7 +21,13 @@ user@computer:~$ npm install
 
 ### Debugging
 
-The best way to debug right now is to deploy your code and see if it fails. Then make a phone call for the respective branch. If any errors occur, inspect the logs on the Twilio Console.
+TypeScript can save you from the most common bugs. Run the following command to see if your files compile successfully. The GitHub Actions deploy workflow runs this anyway and will fail to deploy if there are errors, but you can run it locally too and save yourself time.
+
+```console
+user@computer:~$ npm run build
+```
+
+For runtime errors, the best way to debug right now is to deploy your code and see if it fails. Then make a phone call for the respective branch. If any errors occur, inspect the logs on the Twilio Console.
 
 Eventually we'll add a testing framework you can run locally.
 
