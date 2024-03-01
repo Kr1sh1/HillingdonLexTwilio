@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "transpile": "babel functions --out-dir functions --no-comments"
+    "build": "tsc"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.521.0",

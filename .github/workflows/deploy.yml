@@ -25,8 +25,8 @@ jobs:
         run: npm install -g twilio-cli
       - name: twilio serverless
         run: twilio plugins:install @twilio-labs/plugin-serverless@v3
-      - name: Transpile with Babel ESM syntax to CJS
-        run: npm run transpile
+      - name: Compile TypeScript files to JavaScript
+        run: npm run build
       - name: twilio serverless:deploy
         env:
           TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
