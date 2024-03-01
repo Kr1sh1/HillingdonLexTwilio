@@ -6,7 +6,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
   event,
   callback,
 ) {
-  if (event.CallStatus === "Completed") {
+  if (event.CallStatus === "completed") {
     const callerNumber = event.From
     const logFileName = decodeURIComponent(event.request.cookies.logFileName) // Could be 'null' if the call was terminated too early
     const callStartTimestamp = decodeURIComponent(event.request.cookies.callStartTimestamp)
