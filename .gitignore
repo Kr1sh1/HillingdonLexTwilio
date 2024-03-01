@@ -1,5 +1,6 @@
 # Twilio Serverless
 .twiliodeployinfo
+compiled/**/*
 
 # Created by https://www.toptal.com/developers/gitignore/api/node,git,macos,linux,windows,intellij
 # Edit at https://www.toptal.com/developers/gitignore?templates=node,git,macos,linux,windows,intellij
@@ -154,7 +155,8 @@ fabric.properties
 .LSOverride
 
 # Icon must end with two \r
-Icon
+Icon
+
 
 # Thumbnails
 ._*

@@ -4,7 +4,8 @@
       "loadSystemEnv": true,
       "env": ".env.twilio_environment",
       "overrideExistingProject": true,
-      "serviceName": "HillingdonLexTwilio"
+      "serviceName": "HillingdonLexTwilio",
+      "functionsFolder": "compiled"
     }
   }
 }
