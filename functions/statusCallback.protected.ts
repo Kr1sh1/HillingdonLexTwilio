@@ -33,8 +33,6 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
       }
     };
 
-    const pool = await connect(serverConfig)
-
     let insertParams: Params = [
       {
         fieldName: "callerNumber",
@@ -65,6 +63,8 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
         type: TYPES.VarChar(100)
       })
     }
+
+    const pool = await connect(serverConfig)
 
     const { columns, values, builtRequest } = constructRequest(pool.request(), insertParams)
 
