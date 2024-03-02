@@ -41,7 +41,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
       },
       {
         fieldName: "callStartTimestamp",
-        value: decodeURIComponent(event.request.cookies.callStartTimestamp),
+        value: new Date(decodeURIComponent(event.request.cookies.callStartTimestamp)),
         type: TYPES.DateTimeOffset(7)
       },
       {

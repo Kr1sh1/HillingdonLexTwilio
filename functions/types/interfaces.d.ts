@@ -46,5 +46,5 @@ export interface TwilioEnvironmentVariables extends EnvironmentVariables {
 interface Param {
   type: ISqlType;
   fieldName: string;
-  value: string | number;
+  value: string | number | Date;
 }
