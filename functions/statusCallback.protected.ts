@@ -1,7 +1,7 @@
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
 import { SQLParam, StatusCallbackServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
 import { connect, config, Request, TYPES } from 'mssql';
-import moment from 'moment';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
 type SQLParams = SQLParam[]
 
@@ -21,6 +21,17 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
   callback,
 ) {
   if (event.CallStatus === "completed") {
+    const callDetailsPromise = new Twilio.Twilio(context.ACCOUNT_SID, context.AUTH_TOKEN).calls(event.CallSid)
+      .fetch()
+      .then((call) => {
+        return {
+          from: call.from,
+          startTime: call.startTime,
+          endTime: call.endTime,
+          duration: +call.duration
+        }
+      })
+
     const serverConfig: config = {
       user: context.RDS_USER,
       password: context.RDS_PASSWORD,
@@ -33,39 +44,38 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
       }
     };
 
+    const [pool, logFileCreated, callDetails] = await Promise.all([connect(serverConfig), checkLogFileCreated(), callDetailsPromise])
+
     let insertParams: SQLParams = [
       {
         fieldName: "callerNumber",
-        value: event.From,
+        value: callDetails.from,
         type: TYPES.VarChar
       },
       {
         fieldName: "callStartTimestamp",
-        value: new Date(decodeURIComponent(event.request.cookies.callStartTimestamp)),
+        value: callDetails.startTime,
         type: TYPES.DateTime
       },
       {
         fieldName: "callEndTimestamp",
-        // value: moment(event.Timestamp, 'ddd, DD MMM YYYY HH:mm:ss ZZ').format("YYYY-MM-DD HH:mm:ss Z"),
-        value: new Date(event.Timestamp),
+        value: callDetails.endTime,
         type: TYPES.DateTime
       },
       {
         fieldName: "callDurationInSeconds",
-        value: +event.CallDuration,
+        value: callDetails.duration,
         type: TYPES.SmallInt
       }
     ]
 
-    if (event.request.cookies.logFileName) {
+    if (logFileCreated) {
       insertParams.push({
         fieldName: "logFileName",
-        value: decodeURIComponent(event.request.cookies.logFileName),
+        value: `${event.CallSid}.json`,
         type: TYPES.VarChar
       })
     }
-
-    const pool = await connect(serverConfig)
 
     const { columns, values, builtRequest } = constructRequest(pool.request(), insertParams)
 
@@ -79,4 +89,27 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
   }
   const response = new Response();
   return callback(null, response)
+
+  async function checkLogFileCreated() {
+    const s3Client = new S3Client(
+      {
+        region: context.AWS_REGION,
+        credentials: {
+          accessKeyId: context.AWS_ACCESS_KEY_ID,
+          secretAccessKey: context.AWS_SECRET_ACCESS_KEY,
+        }
+      }
+    );
+    return s3Client.send(
+      new GetObjectCommand({
+        Bucket: context.AWS_S3_BUCKET,
+        Key: `${event.CallSid}.json`,
+      })
+    )
+      .then(() => true)
+      .catch((error) => {
+        if (error.Code != "NoSuchKey") throw error;
+        return false;
+      })
+  }
 }

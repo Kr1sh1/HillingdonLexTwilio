@@ -59,8 +59,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
 
   let logFileName;
   if (!cookies.logFileName) {
-    const callStartTimestamp = decodeURIComponent(cookies.callStartTimestamp)
-    logFileName = `${event.From}_${callStartTimestamp}.json`
+    logFileName = `${event.CallSid}.json`
     response.setCookie('logFileName', encodeURIComponent(logFileName), ['Path=/']);
   } else {
     logFileName = decodeURIComponent(cookies.logFileName)
@@ -147,11 +146,9 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   }
 
   async function uploadToS3(logs: Conversation, logFileName: string) {
-    const bucketName = 'engelbartchatlogs1';
-
     const existingContent = await s3Client.send(
       new GetObjectCommand({
-        Bucket: bucketName,
+        Bucket: context.AWS_S3_BUCKET,
         Key: logFileName,
       })
     )
@@ -165,7 +162,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
     // Push the ammended JSON file onto S3, overwriting the previous one if it existed.
     await s3Client.send(
       new PutObjectCommand({
-        Bucket: bucketName,
+        Bucket: context.AWS_S3_BUCKET,
         Key: logFileName,
         Body: JSON.stringify([...existingContent, ...logs]),
       })
