@@ -1,4 +1,3 @@
-import moment from 'moment';
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
 import { CommonServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
 
