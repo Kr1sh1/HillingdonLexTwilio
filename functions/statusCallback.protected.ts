@@ -6,8 +6,10 @@ import moment from 'moment';
 type Params = Param[]
 
 const constructRequest = (request: Request, params: Params) => {
-  const columns = params.map((param) => param.fieldName).join(", ")
-  const values = "@" + params.map((param) => param.fieldName).join(", @")
+  const fieldNames = params.map((param) => param.fieldName)
+
+  const columns = fieldNames.join(", ")
+  const values = "@" + fieldNames.join(", @")
   const builtRequest = params.reduce((req, param) => req.input(param.fieldName, param.type, param.value), request)
 
   return { columns, values, builtRequest }
@@ -56,7 +58,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
       }
     ]
 
-    if (event.request.cookies.logFileName !== "null") {
+    if (event.request.cookies.logFileName) {
       insertParams.push({
         fieldName: "logFileName",
         value: decodeURIComponent(event.request.cookies.logFileName),
