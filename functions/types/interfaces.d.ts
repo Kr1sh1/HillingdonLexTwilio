@@ -40,3 +40,11 @@ export interface TwilioEnvironmentVariables extends EnvironmentVariables {
   RDS_SERVER: string;
   RDS_PORT: string;
 }
+
+export interface InsertParams {
+  callStartTimestamp: string;
+  callEndTimestamp: string;
+  callDurationInSeconds: string;
+  callerNumber: string;
+  logFileName?: string;
+}
