@@ -39,6 +39,7 @@ export interface TwilioEnvironmentVariables extends EnvironmentVariables {
   RDS_USER: string;
   RDS_SERVER: string;
   RDS_PORT: string;
+  RDS_DATABASE: string;
 }
 
 export interface InsertParams {

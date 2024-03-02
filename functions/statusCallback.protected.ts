@@ -28,6 +28,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
       password: context.RDS_PASSWORD,
       server: context.RDS_SERVER,
       port: +context.RDS_PORT,
+      database: context.RDS_DATABASE,
       options: {
         encrypt: false,
         trustServerCertificate: false
