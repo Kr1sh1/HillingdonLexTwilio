@@ -43,8 +43,8 @@ export interface TwilioEnvironmentVariables extends EnvironmentVariables {
   RDS_DATABASE: string;
 }
 
-interface Param {
-  type: ISqlType;
+export interface SQLParam {
+  type: ISqlType | (() => ISqlType);
   fieldName: string;
   value: string | number | Date;
 }

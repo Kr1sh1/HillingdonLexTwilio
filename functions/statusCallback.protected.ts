@@ -1,11 +1,11 @@
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
-import { Param, StatusCallbackServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
+import { SQLParam, StatusCallbackServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
 import { connect, config, Request, TYPES } from 'mssql';
 import moment from 'moment';
 
-type Params = Param[]
+type SQLParams = SQLParam[]
 
-const constructRequest = (request: Request, params: Params) => {
+const constructRequest = (request: Request, params: SQLParams) => {
   const fieldNames = params.map((param) => param.fieldName)
 
   const columns = fieldNames.join(", ")
@@ -33,26 +33,27 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
       }
     };
 
-    let insertParams: Params = [
+    let insertParams: SQLParams = [
       {
         fieldName: "callerNumber",
         value: event.From,
-        type: TYPES.VarChar(20)
+        type: TYPES.VarChar
       },
       {
         fieldName: "callStartTimestamp",
         value: new Date(decodeURIComponent(event.request.cookies.callStartTimestamp)),
-        type: TYPES.DateTimeOffset(7)
+        type: TYPES.DateTime
       },
       {
         fieldName: "callEndTimestamp",
-        value: moment(event.Timestamp, 'ddd, DD MMM YYYY HH:mm:ss ZZ').format("YYYY-MM-DD HH:mm:ss Z"),
-        type: TYPES.DateTimeOffset(7)
+        // value: moment(event.Timestamp, 'ddd, DD MMM YYYY HH:mm:ss ZZ').format("YYYY-MM-DD HH:mm:ss Z"),
+        value: new Date(event.Timestamp),
+        type: TYPES.DateTime
       },
       {
         fieldName: "callDurationInSeconds",
         value: +event.CallDuration,
-        type: TYPES.SmallInt()
+        type: TYPES.SmallInt
       }
     ]
 
@@ -60,7 +61,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
       insertParams.push({
         fieldName: "logFileName",
         value: decodeURIComponent(event.request.cookies.logFileName),
-        type: TYPES.VarChar(100)
+        type: TYPES.VarChar
       })
     }
 
