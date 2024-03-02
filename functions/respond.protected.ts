@@ -57,15 +57,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
 
   conversation.push(assistantLog);
 
-  let logFileName;
-  if (!cookies.logFileName) {
-    logFileName = `${event.CallSid}.json`
-    response.setCookie('logFileName', encodeURIComponent(logFileName), ['Path=/']);
-  } else {
-    logFileName = decodeURIComponent(cookies.logFileName)
-  }
-
-  await uploadToS3([userLog, assistantLog], logFileName);
+  await uploadToS3([userLog, assistantLog], `${event.CallSid}.json`);
 
   while (conversation.length > 10) {
     conversation.shift();

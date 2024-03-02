@@ -22,7 +22,6 @@ interface StatusCallbackEventBody extends CommonEventBody {
 interface Cookies {
   initiated: string;
   convo: string;
-  logFileName: string;
 }
 
 export interface CommonServerlessEventObject extends ServerlessEventObject<CommonEventBody, {}, Cookies> {}
