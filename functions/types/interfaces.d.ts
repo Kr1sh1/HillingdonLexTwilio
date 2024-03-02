@@ -2,6 +2,7 @@ import {
   EnvironmentVariables,
   ServerlessEventObject,
 } from '@twilio-labs/serverless-runtime-types/types';
+import { ISqlType } from 'mssql';
 
 interface CommonEventBody {
   CallStatus: string;
@@ -42,10 +43,8 @@ export interface TwilioEnvironmentVariables extends EnvironmentVariables {
   RDS_DATABASE: string;
 }
 
-export interface InsertParams {
-  callStartTimestamp: string;
-  callEndTimestamp: string;
-  callDurationInSeconds: string;
-  callerNumber: string;
-  logFileName?: string;
+interface Param {
+  type: ISqlType;
+  fieldName: string;
+  value: string | number;
 }

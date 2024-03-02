@@ -1,12 +1,14 @@
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
-import { InsertParams, StatusCallbackServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
-import { connect, config, Request } from 'mssql';
+import { Param, StatusCallbackServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
+import { connect, config, Request, TYPES } from 'mssql';
 import moment from 'moment';
 
-const constructRequest = (request: Request, params: InsertParams) => {
-  const columns = Object.keys(params).join(", ")
-  const values = "@" + Object.keys(params).join(", @")
-  const builtRequest = Object.entries(params).reduce((req, [key, value]) => req.input(key, value), request)
+type Params = Param[]
+
+const constructRequest = (request: Request, params: Params) => {
+  const columns = params.map((param) => param.fieldName).join(", ")
+  const values = "@" + params.map((param) => param.fieldName).join(", @")
+  const builtRequest = params.reduce((req, param) => req.input(param.fieldName, param.type, param.value), request)
 
   return { columns, values, builtRequest }
 }
@@ -17,12 +19,6 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
   callback,
 ) {
   if (event.CallStatus === "completed") {
-    const callerNumber = event.From
-    const logFileName = decodeURIComponent(event.request.cookies.logFileName) // Could be 'null' if the call was terminated too early
-    const callStartTimestamp = decodeURIComponent(event.request.cookies.callStartTimestamp)
-    const callEndTimestamp = moment(event.Timestamp, 'ddd, DD MMM YYYY HH:mm:ss ZZ').format("YYYY-MM-DD HH:mm:ss Z")
-    const callDurationInSeconds = event.CallDuration
-
     const serverConfig: config = {
       user: context.RDS_USER,
       password: context.RDS_PASSWORD,
@@ -37,18 +33,35 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
 
     const pool = await connect(serverConfig)
 
-    let insertParams: InsertParams = {
-      callerNumber,
-      callStartTimestamp,
-      callEndTimestamp,
-      callDurationInSeconds
-    }
-
-    if (logFileName !== "null") {
-      insertParams = {
-        ...insertParams,
-        logFileName
+    let insertParams: Params = [
+      {
+        fieldName: "callerNumber",
+        value: event.From,
+        type: TYPES.VarChar(20)
+      },
+      {
+        fieldName: "callStartTimestamp",
+        value: decodeURIComponent(event.request.cookies.callStartTimestamp),
+        type: TYPES.DateTimeOffset(7)
+      },
+      {
+        fieldName: "callEndTimestamp",
+        value: moment(event.Timestamp, 'ddd, DD MMM YYYY HH:mm:ss ZZ').format("YYYY-MM-DD HH:mm:ss Z"),
+        type: TYPES.DateTimeOffset(7)
+      },
+      {
+        fieldName: "callDurationInSeconds",
+        value: +event.CallDuration,
+        type: TYPES.SmallInt()
       }
+    ]
+
+    if (event.request.cookies.logFileName !== "null") {
+      insertParams.push({
+        fieldName: "logFileName",
+        value: decodeURIComponent(event.request.cookies.logFileName),
+        type: TYPES.VarChar(100)
+      })
     }
 
     const { columns, values, builtRequest } = constructRequest(pool.request(), insertParams)
