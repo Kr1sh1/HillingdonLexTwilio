@@ -1,4 +1,3 @@
-import moment from 'moment';
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
 import { CommonServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
 
@@ -21,10 +20,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Co
       "Hey! I'm HillingdonLex, a chatbot created to help the residents of Hillingdon. What would you like to talk about today? I could help you order recycling bags, report a street that needs cleaning, request a housing repair or make an adult social care query among other things."
     );
 
-    const callStartTimestamp = encodeURIComponent(moment().utc().format('ddd, DD MMM YYYY HH:mm:ss ZZ'));
-
     response.setCookie('initiated', "true", ['Path=/']);
-    response.setCookie('callStartTimestamp', callStartTimestamp, ['Path=/']);
   }
 
   // Listen to the user's speech and pass the input to the /respond Function
