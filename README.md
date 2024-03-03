@@ -65,7 +65,7 @@ For more fine-grained debugging, you can start the server with debugging enabled
 user@computer:~$ npm run debug
 ```
 
-For VSCode, you can add a `.vscode/launch.json` file containing the following. In the debug panel, press the green button to attach to your process. You can now set breakpoints inside the TypeScript files.
+For VSCode, you can add a `.vscode/launch.json` file containing the following. In the debug panel, press the green button to attach to your process. You can now set breakpoints inside the TypeScript files. It's normal for the breakpoints to appear as hollow grey circles.
 
 ```json
 {
