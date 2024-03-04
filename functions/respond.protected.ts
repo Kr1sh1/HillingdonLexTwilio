@@ -80,7 +80,25 @@ async function generateAIResponse(newMessage: string) {
           {assistant_id: context.OPENAI_ASSISTANT_ID},
       );
 
-      await addMessageToThread(callThread, newMessage);
+
+      const addMessageToRun = async () => {
+          let keepRetrievingRun;
+          while (run.status === "queued" || run.status === "in_progress") {
+              keepRetrievingRun = await openai.beta.threads.runs.retrieve(
+                  callThread,
+                  run.id
+              );
+              console.log(`Run status: ${keepRetrievingRun.status}`);
+
+              if (keepRetrievingRun.status === "completed") {
+                  console.log("\n");
+                  await addMessageToThread(callThread, newMessage);
+
+              }
+          }
+      };
+
+      await addMessageToRun();
 
       const retrieveRun = async () => {
           let keepRetrievingRun;
