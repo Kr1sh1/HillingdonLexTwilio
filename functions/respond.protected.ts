@@ -108,11 +108,10 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
     }
 
     async function updateThread(newMessage: string) {
-    const run = await startNewRun();
-
-    await waitForRunCompletion({run: run});
-
-    return retrieveMessagesFromThread();
+        await addMessageToThread(newMessage);
+        const run = await startNewRun();
+        await waitForRunCompletion({run: run});
+        return retrieveMessagesFromThread();
     }
 
 
