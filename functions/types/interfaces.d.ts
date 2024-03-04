@@ -22,6 +22,7 @@ interface StatusCallbackEventBody extends CommonEventBody {
 interface Cookies {
   initiated: string;
   convo: string;
+  threadID: string;
 }
 
 export interface CommonServerlessEventObject extends ServerlessEventObject<CommonEventBody, {}, Cookies> {}
@@ -41,6 +42,7 @@ export interface TwilioEnvironmentVariables extends EnvironmentVariables {
   RDS_DATABASE: string;
   ACCOUNT_SID: string;
   AUTH_TOKEN: string;
+  OPENAI_ASSISTANT_ID: string;
 }
 
 export interface SQLParam {

@@ -2,15 +2,12 @@ import OpenAI from "openai";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
 import { RespondServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
+import {MessageContentImageFile, MessageContentText} from "openai/resources/beta/threads";
 
-enum Role {
-  SYSTEM = "system",
-  ASSISTANT = "assistant",
-  USER = "user",
-}
+
 
 interface Message {
-  role: Role;
+  role: 'user' | 'assistant';
   content: string;
 }
 
@@ -35,33 +32,26 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   const response = new Twilio.Response();
 
   const cookies = event.request.cookies;
-  const conversation: Conversation = cookies.convo ?
-    JSON.parse(decodeURIComponent(cookies.convo)) :
-    [];
-
+  const callThread = cookies.threadID;
   const userLog = {
-    role: Role.USER,
+    role: "user",
     content: event.SpeechResult,
   };
 
-  conversation.push(userLog);
 
-  const aiResponse = await generateAIResponse(conversation);
-  if (!aiResponse) return;
-  const cleanedAiResponse = aiResponse.replace(/^\w+:\s*/i, "").trim();
+
+  const newMessage = JSON.stringify(userLog.content);
+  const aiResponse = await generateAIResponse(newMessage);
+  if (aiResponse == null) return; // Return early if aiResponse is null or undefined
+  const cleanedAiResponse = aiResponse.content.replace(/^\w+:\s*/i, "").trim();
 
   const assistantLog = {
-    role: Role.ASSISTANT,
+    role: "assistant",
     content: cleanedAiResponse,
   };
 
-  conversation.push(assistantLog);
 
-  await uploadToS3([userLog, assistantLog], `${event.CallSid}.json`);
 
-  while (conversation.length > 10) {
-    conversation.shift();
-  }
 
   twiml_response.say({
     voice: "Polly.Joanna-Neural",
@@ -78,64 +68,86 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   response.appendHeader("Content-Type", "application/xml");
   response.setBody(twiml_response.toString());
 
-  const newCookieValue = encodeURIComponent(
-    JSON.stringify(conversation)
-  );
-  response.setCookie("convo", newCookieValue, ["Path=/"]);
-
   return callback(null, response);
 
-  async function generateAIResponse(conversation: Conversation) {
-    const messages = formatConversation(conversation);
-    return await createChatCompletion(messages);
+async function generateAIResponse(newMessage: string) {
+    return await updateThread(newMessage);
   }
 
-  function formatConversation(conversation: Conversation) {
-    const messages = [{
-      role: Role.SYSTEM,
-      content: "You are a creative, funny, friendly and amusing AI assistant named Joanna. Please provide engaging but concise responses.",
-    },
-    {
-      role: Role.USER,
-      content: "We are having a casual conversation over the telephone so please provide engaging but concise responses.",
-    },
-    ];
+  async function updateThread(newMessage: string) {
+      const run = await openai.beta.threads.runs.create(
+          callThread,
+          {assistant_id: context.OPENAI_ASSISTANT_ID},
+      );
 
-    return messages.concat(conversation);
+      await addMessageToThread(callThread, newMessage);
+
+      const retrieveRun = async () => {
+          let keepRetrievingRun;
+
+          while (run.status === "queued" || run.status === "in_progress") {
+              keepRetrievingRun = await openai.beta.threads.runs.retrieve(
+                  callThread,
+                  run.id
+              );
+              console.log(`Run status: ${keepRetrievingRun.status}`);
+
+              if (keepRetrievingRun.status === "completed") {
+                  console.log("\n");
+
+                  // Step 7: Retrieve the Messages added by the Assistant to the Thread
+                  const threadPage = await openai.beta.threads.messages.list(
+                      callThread,
+                      {
+                          limit : 1,
+                          order : "desc"
+                      }
+                  );
+                  const threadMessage = threadPage.getPaginatedItems()[0]
+                  let splitMessages: MessageContentText[] = threadMessage.content.filter(isMessageContentText)
+                    const messagesConverted = splitMessages.map(singleMessage => {
+                      return {
+                        role: threadMessage.role,
+                        content: singleMessage.text.value
+                      }
+                    })
+
+                function isMessageContentText(message: MessageContentText | MessageContentImageFile): message is MessageContentText {
+                  return message.type === "text"
+                }
+
+                  return messagesConverted[0];
+                  break;
+
+              } else if (
+                  keepRetrievingRun.status === "queued" ||
+                  keepRetrievingRun.status === "in_progress"
+              ) {
+                  // pass
+              } else {
+                  console.log(`Run status: ${keepRetrievingRun.status}`);
+                  break;
+              }
+          }
+      };
+      return await retrieveRun();
   }
 
-  async function createChatCompletion(messages: Conversation) {
+  async function addMessageToThread(callThread: string, message: string) {
     try {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages,
-        temperature: 0.8,
-        max_tokens: 100,
-      });
+        // Add message to thread using OpenAI API
+        await openai.beta.threads.messages.create(callThread, {
+                role: "user", // Ensure 'role' is set
+                content: message // Ensure 'content' is set
+        });
 
-      return completion.choices[0].message.content;
     } catch (error) {
-      if (error instanceof OpenAI.APIError) {
-        console.error("Error: OpenAI API request errored out.");
-        twiml_response.say({
-          voice: "Polly.Joanna-Neural",
-        },
-          "I'm sorry, something went wrong. Let's try that again, one more time."
-        );
-        twiml_response.redirect({
-          method: "POST",
-        },
-          `/transcribe`
-        );
-        response.appendHeader("Content-Type", "application/xml");
-        response.setBody(twiml_response.toString());
-        return callback(null, response);
-      } else {
-        console.error("Error during OpenAI API request:", error);
-        throw error;
-      }
+        // Handle errors related to adding message to thread
+        console.error("Error adding message to thread:", error);
+        throw error; // Propagate the error to the caller
     }
-  }
+}
+
 
   async function uploadToS3(logs: Conversation, logFileName: string) {
     const existingContent = await s3Client.send(
