@@ -1,5 +1,4 @@
 import OpenAI from "openai";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
 import { RespondServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
 import { sleep } from "openai/core";
@@ -101,11 +100,6 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
     function isMessageContentText(message: MessageContentText | MessageContentImageFile): message is MessageContentText {
       return message.type === "text"
     }
-
-    // let bigMessage = ""
-    // formattedMessages.forEach(text => {
-    //   bigMessage += text
-    // });
 
     return formattedMessages[0];
   }
