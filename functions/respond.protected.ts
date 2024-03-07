@@ -105,7 +105,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
 
     async function startNewRun() {
         try {
-            const run = await openai.beta.threads.runs.create(callThread, { assistant_id: context.OPENAI_ASSISTANT_ID });
+            const run = openai.beta.threads.runs.create(callThread, { assistant_id: context.OPENAI_ASSISTANT_ID });
             return run;
         } catch (error) {
             console.error("Error starting new run:", error);
