@@ -19,7 +19,8 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   const newMessage = event.SpeechResult;
 
   const aiResponse = await generateAIResponse(newMessage);
-  if (aiResponse == null) return; // Return early if aiResponse is null or undefined
+  console.log("string:", aiResponse)
+  if (aiResponse == null) return callback(aiResponse); // Return early if aiResponse is null or undefined
   const cleanedAiResponse = aiResponse.replace(/^\w+:\s*/i, "").trim();
 
   twiml_response.say({

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "run": "twilio-run start",
+    "start": "twilio-run start",
     "debug": "twilio-run start --inspect"
   },
   "dependencies": {
