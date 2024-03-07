@@ -127,7 +127,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
             if (run && (run.status === "queued" || run.status === "in_progress")) {
                 await sleep(1000); // Wait for 1 second before checking again
                 try {
-                    run = await openai.beta.threads.runs.retrieve(callThread, run.id);
+                    run = openai.beta.threads.runs.retrieve(callThread, run.id);
                 } catch (error) {
                     console.error("Error retrieving run status:", error);
                     throw error;
