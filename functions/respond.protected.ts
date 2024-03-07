@@ -85,7 +85,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   }
 
   async function retrieveMessagesFromThread(message: ThreadMessage) {
-    const pages = await openai.beta.threads.messages.list(callThread, { order: "asc", after: message.id });
+    const pages = await openai.beta.threads.messages.list(callThread, { limit: 1, order: "desc" });
     const messages: ThreadMessage[] = []
     for await (const page of pages.iterPages()) {
       messages.concat(page.getPaginatedItems())
