@@ -2,160 +2,112 @@ import OpenAI from "openai";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
 import { RespondServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
-import {sleep} from "openai/core";
-import {MessageContentImageFile, MessageContentText} from "openai/resources/beta/threads";
+import { sleep } from "openai/core";
+import { MessageContentImageFile, MessageContentText, Run, ThreadMessage } from "openai/resources/beta/threads";
 
-
-
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-
-export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, RespondServerlessEventObject> = async function(
+export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, RespondServerlessEventObject> = async function (
   context,
   event,
   callback
 ) {
-    const openai = new OpenAI({apiKey: context.OPENAI_API_KEY});
-    const s3Client = new S3Client(
-        {
-            region: context.AWS_REGION,
-            credentials: {
-                accessKeyId: context.AWS_ACCESS_KEY_ID,
-                secretAccessKey: context.AWS_SECRET_ACCESS_KEY,
-            }
-        }
-    );
-    const twiml_response = new Twilio.twiml.VoiceResponse();
-    const response = new Twilio.Response();
+  const openai = new OpenAI({ apiKey: context.OPENAI_API_KEY });
+  const twiml_response = new Twilio.twiml.VoiceResponse();
+  const response = new Twilio.Response();
 
-    const cookies = event.request.cookies;
-    const callThread = cookies.threadID;
-    const userLog = {
-        role: "user",
-        content: event.SpeechResult,
-    };
-    const newMessage = JSON.stringify(userLog.content);
+  const cookies = event.request.cookies;
+  const callThread = cookies.threadID;
+  const newMessage = event.SpeechResult;
 
-    await waitForPreviousRunCompletion(); // Wait for the previous run to complete
-    await addMessageToThread(newMessage);
+  const aiResponse = await generateAIResponse(newMessage);
+  if (aiResponse == null) return; // Return early if aiResponse is null or undefined
+  const cleanedAiResponse = aiResponse.replace(/^\w+:\s*/i, "").trim();
 
-    const aiResponse = await generateAIResponse(newMessage);
-    if (aiResponse == null) return; // Return early if aiResponse is null or undefined
-    const cleanedAiResponse = aiResponse.content.replace(/^\w+:\s*/i, "").trim();
+  twiml_response.say({
+    voice: "Polly.Joanna-Neural",
+  },
+    cleanedAiResponse
+  );
 
-    const assistantLog = {
-        role: "assistant",
-        content: cleanedAiResponse,
-    };
+  twiml_response.redirect({
+    method: "POST",
+  },
+    `/transcribe`
+  );
 
-    twiml_response.say({
-            voice: "Polly.Joanna-Neural",
-        },
-        cleanedAiResponse
-    );
+  response.appendHeader("Content-Type", "application/xml");
+  response.setBody(twiml_response.toString());
 
-    twiml_response.redirect({
-            method: "POST",
-        },
-        `/transcribe`
-    );
+  return callback(null, response);
 
-    response.appendHeader("Content-Type", "application/xml");
-    response.setBody(twiml_response.toString());
+  async function addMessageToThread(message: string) {
+    return await openai.beta.threads.messages.create(callThread, {
+      role: "user",
+      content: message
+    });
+  }
 
-    return callback(null, response);
+  async function generateAIResponse(newMessage: string) {
+    try {
+      return await updateThread(newMessage);
+    } catch (error) {
+      console.error("Error generating AI response:", error);
+      return null;
+    }
+  }
 
-    async function waitForPreviousRunCompletion() {
-        let runStatus;
-        do {
-            const runs = await openai.beta.threads.runs.list(callThread);
-            const latestRun = runs.data[0]; // Get the latest run
-            runStatus = latestRun.status;
+  async function startNewRun() {
+    try {
+      const run = await openai.beta.threads.runs.create(callThread, { assistant_id: context.OPENAI_ASSISTANT_ID });
+      return run;
+    } catch (error) {
+      console.error("Error starting new run:", error);
+      throw error;
+    }
+  }
 
-            if (runStatus === "queued" || runStatus === "in_progress" || runStatus === "requires_action" || runStatus === "cancelling") {
-                console.log("Previous run is still active. Waiting...");
-                await sleep(1000); // Wait for 1 second before checking again
-            }
-        } while (runStatus === "queued" || runStatus === "in_progress" || runStatus === "requires_action" || runStatus === "cancelling");
+  async function updateThread(newMessage: string) {
+    const message = await addMessageToThread(newMessage);
+    const run = await startNewRun();
+    await waitForRunCompletion(run);
+    return retrieveMessagesFromThread(message);
+  }
+
+  async function waitForRunCompletion(run: Run) {
+    while (true) {
+      if (run.status === "queued" || run.status === "in_progress") {
+        await sleep(1000); // Wait for 1 second before checking again
+        run = await openai.beta.threads.runs.retrieve(callThread, run.id);
+      } else {
+        break; // Exit the loop if run is not defined or status is not queued or in_progress
+      }
+    }
+  }
+
+  async function retrieveMessagesFromThread(message: ThreadMessage) {
+    const pages = await openai.beta.threads.messages.list(callThread, { order: "asc", after: message.id });
+    const messages: ThreadMessage[] = []
+    for await (const page of pages.iterPages()) {
+      messages.concat(page.getPaginatedItems())
     }
 
-    async function addMessageToThread(message: string) {
-        try {
-            await openai.beta.threads.messages.create(callThread, {
-                role: "user",
-                content: message
-            });
-        } catch (error) {
-            console.error("Error adding message to thread:", error);
-            throw error;
-        }
+    const formattedMessages = messages.flatMap(message => {
+      const splitMessages: MessageContentText[] = message.content.filter(isMessageContentText)
+      return splitMessages.map(singleMessage => {
+        return singleMessage.text.value
+      })
+    })
+
+    function isMessageContentText(message: MessageContentText | MessageContentImageFile): message is MessageContentText {
+      return message.type === "text"
     }
 
-    async function generateAIResponse(newMessage: string) {
-        try {
-            return await updateThread(newMessage);
-        } catch (error) {
-            console.error("Error generating AI response:", error);
-            return null;
-        }
-    }
+    let bigMessage = ""
+    formattedMessages.forEach(text => {
+      bigMessage += text
+    });
 
-    async function startNewRun() {
-        try {
-            const run = openai.beta.threads.runs.create(callThread, { assistant_id: context.OPENAI_ASSISTANT_ID });
-            return run;
-        } catch (error) {
-            console.error("Error starting new run:", error);
-            throw error;
-        }
-    }
-
-
-    async function updateThread(newMessage: string) {
-        await addMessageToThread(newMessage);
-        const run = await startNewRun();
-        await waitForRunCompletion({run: run});
-        return retrieveMessagesFromThread();
-    }
-
-
-    async function waitForRunCompletion({run}: { run: any }) {
-        while (true) {
-            if (run && (run.status === "queued" || run.status === "in_progress")) {
-                await sleep(1000); // Wait for 1 second before checking again
-                try {
-                    run = openai.beta.threads.runs.retrieve(callThread, run.id);
-                } catch (error) {
-                    console.error("Error retrieving run status:", error);
-                    throw error;
-                }
-            } else {
-                break; // Exit the loop if run is not defined or status is not queued or in_progress
-            }
-        }
-    }
-
-    async function retrieveMessagesFromThread() {
-        const threadPage = await openai.beta.threads.messages.list(callThread, { limit: 1, order: "desc" });
-
-        const threadMessage = threadPage.getPaginatedItems()[0];
-                  let splitMessages: MessageContentText[] = threadMessage.content.filter(isMessageContentText)
-                    const messagesConverted = splitMessages.map(singleMessage => {
-                      return {
-                        role: threadMessage.role,
-                        content: singleMessage.text.value
-                      }
-                    })
-
-                function isMessageContentText(message: MessageContentText | MessageContentImageFile): message is MessageContentText {
-                  return message.type === "text"
-                }
-
-        return messagesConverted[0];
-    }
+    return bigMessage;
+  }
 
 }
 
