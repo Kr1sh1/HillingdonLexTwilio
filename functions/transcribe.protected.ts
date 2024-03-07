@@ -20,7 +20,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Co
     twiml_response.say({
       voice: 'Polly.Joanna-Neural',
     },
-      "Hey! I'm HillingdonLex, a chatbot created to help the residents of Hillingdon. What would you like to talk about today? I could help you order recycling bags, report a street that needs cleaning, request a housing repair or make an adult social care query among other things."
+      "Branch dev 2"
     );
 
     // Initialise OpenAI communication

@@ -116,15 +116,18 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
 
 
     async function waitForRunCompletion({run}: { run: any }) {
-        try {
-            const updatedRun = await openai.beta.threads.runs.retrieve(callThread, run.id);
-            if (updatedRun.status === "queued" || updatedRun.status === "in_progress") {
-                await sleep(1000);
-                await waitForRunCompletion({ run: updatedRun });
+        while (true) {
+            if (run && (run.status === "queued" || run.status === "in_progress")) {
+                await sleep(1000); // Wait for 1 second before checking again
+                try {
+                    run = await openai.beta.threads.runs.retrieve(callThread, run.id);
+                } catch (error) {
+                    console.error("Error retrieving run status:", error);
+                    throw error;
+                }
+            } else {
+                break; // Exit the loop if run is not defined or status is not queued or in_progress
             }
-        } catch (error) {
-            console.error("Error retrieving run status:", error);
-            throw error;
         }
     }
 
