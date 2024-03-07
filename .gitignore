@@ -3,6 +3,7 @@
 compiled/
 
 .vscode/
+.idea/
 
 # Created by https://www.toptal.com/developers/gitignore/api/node,git,macos,linux,windows,intellij
 # Edit at https://www.toptal.com/developers/gitignore?templates=node,git,macos,linux,windows,intellij
