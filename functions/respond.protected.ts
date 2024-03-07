@@ -102,15 +102,11 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
       return message.type === "text"
     }
 
-    let bigMessage = ""
-    formattedMessages.forEach(text => {
-      bigMessage += text
-    });
+    // let bigMessage = ""
+    // formattedMessages.forEach(text => {
+    //   bigMessage += text
+    // });
 
-    return bigMessage;
+    return formattedMessages[0];
   }
-
 }
-
-
-
