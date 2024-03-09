@@ -27,7 +27,7 @@ interface Cookies {
 
 export interface CommonServerlessEventObject extends ServerlessEventObject<CommonEventBody, {}, Cookies> {}
 export interface RespondServerlessEventObject extends ServerlessEventObject<RespondEventBody, {}, Cookies> {}
-export interface StatusCallbackServerlessEventObject extends ServerlessEventObject<StatusCallbackEventBody, Headers, {}> {}
+export interface StatusCallbackServerlessEventObject extends ServerlessEventObject<StatusCallbackEventBody, {}, {}> {}
 
 export interface TwilioEnvironmentVariables extends EnvironmentVariables {
   OPENAI_API_KEY: string;
@@ -43,10 +43,20 @@ export interface TwilioEnvironmentVariables extends EnvironmentVariables {
   ACCOUNT_SID: string;
   AUTH_TOKEN: string;
   OPENAI_ASSISTANT_ID: string;
+  SYNC_SERVICE_SID: string;
 }
 
 export interface SQLParam {
   type: ISqlType | (() => ISqlType);
   fieldName: string;
   value: string | number | Date;
+}
+
+export interface SyncDocumentData {
+  threadId: string;
+}
+
+export interface Message {
+  role: "user" | "assistant";
+  content: string;
 }
