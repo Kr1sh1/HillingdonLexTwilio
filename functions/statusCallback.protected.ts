@@ -126,14 +126,12 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
       messages = messages.concat(page.getPaginatedItems())
     }
 
-    const formattedMessages: Conversation = messages.flatMap(message => {
-      const splitMessages: MessageContentText[] = message.content.filter(isMessageContentText)
-      return splitMessages.map(singleMessage => {
-        return {
-          role: message.role,
-          content: singleMessage.text.value
-        }
-      })
+    const formattedMessages: Conversation = messages.map(message => {
+      const textMessage: MessageContentText = message.content.filter(isMessageContentText)[0]
+      return {
+        role: message.role,
+        content: textMessage.text.value
+      }
     })
 
     function isMessageContentText(message: MessageContentText | MessageContentImageFile): message is MessageContentText {

@@ -9,6 +9,8 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   event,
   callback
 ) {
+  if (event.CallStatus !== "in-progress") return callback(null)
+
   const openai = ClientManager.getOpenAIClient(context)
   const twiml_response = new Twilio.twiml.VoiceResponse();
   const response = new Twilio.Response();
