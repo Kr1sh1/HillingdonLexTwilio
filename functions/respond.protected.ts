@@ -1,8 +1,9 @@
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
 import { RespondServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
 import { sleep } from "openai/core";
-import { MessageContentImageFile, MessageContentText, Run, ThreadMessage } from "openai/resources/beta/threads";
+import { Run, ThreadMessage } from "openai/resources/beta/threads";
 import { ClientManager } from "./helpers/clients";
+import { fetchThreadConversation } from './helpers/assistant';
 
 export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, RespondServerlessEventObject> = async function (
   context,
@@ -85,22 +86,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   }
 
   async function retrieveMessagesFromThread(message: ThreadMessage) {
-    const pages = await openai.beta.threads.messages.list(callThread, { after: message.id, order: "asc" });
-    let messages: ThreadMessage[] = []
-
-    for await (const page of pages.iterPages()) {
-      messages = messages.concat(page.getPaginatedItems())
-    }
-
-    function isMessageContentText(message: MessageContentText | MessageContentImageFile): message is MessageContentText {
-      return message.type === "text"
-    }
-
-    const formattedMessages = messages.map(message => {
-      const textMessage: MessageContentText = message.content.filter(isMessageContentText)[0]
-      return textMessage.text.value;
-    })
-
-    return formattedMessages.join(" ");
+    const conversation = await fetchThreadConversation(openai, callThread, { after: message.id, order: "asc" })
+    return conversation.map(message => message.content).join(" ")
   }
 }

@@ -1,11 +1,10 @@
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
-import { SQLParam, Message, StatusCallbackServerlessEventObject, SyncDocumentData, TwilioEnvironmentVariables } from './types/interfaces';
+import { SQLParam, StatusCallbackServerlessEventObject, SyncDocumentData, TwilioEnvironmentVariables } from './types/interfaces';
 import { connect, config, Request, TYPES } from 'mssql';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
-import { MessageContentImageFile, MessageContentText, ThreadMessage } from 'openai/resources/beta/threads/messages/messages';
 import { ClientManager } from './helpers/clients';
+import { fetchThreadConversation } from './helpers/assistant';
 
-type Conversation = Message[];
 type SQLParams = SQLParam[]
 
 const constructRequest = (request: Request, params: SQLParams) => {
@@ -105,7 +104,9 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
   return callback(null)
 
   async function uploadConversationToS3(threadId: string) {
-    const conversation = await fetchThreadConversation(threadId)
+    const openai = ClientManager.getOpenAIClient(context)
+    const conversation = await fetchThreadConversation(openai, threadId, { order: "asc" })
+
     const s3Client = ClientManager.getS3Client(context)
 
     await s3Client.send(
@@ -115,29 +116,5 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
         Body: JSON.stringify(conversation),
       })
     );
-  }
-
-  async function fetchThreadConversation(threadId: string) {
-    const openai = ClientManager.getOpenAIClient(context)
-    let messages: ThreadMessage[] = []
-
-    const pages = await openai.beta.threads.messages.list(threadId, { order: "asc" })
-    for await (const page of pages.iterPages()) {
-      messages = messages.concat(page.getPaginatedItems())
-    }
-
-    const formattedMessages: Conversation = messages.map(message => {
-      const textMessage: MessageContentText = message.content.filter(isMessageContentText)[0]
-      return {
-        role: message.role,
-        content: textMessage.text.value
-      }
-    })
-
-    function isMessageContentText(message: MessageContentText | MessageContentImageFile): message is MessageContentText {
-      return message.type === "text"
-    }
-
-    return formattedMessages
   }
 }
