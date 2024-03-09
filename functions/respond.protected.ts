@@ -1,15 +1,15 @@
-import OpenAI from "openai";
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
 import { RespondServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
 import { sleep } from "openai/core";
 import { MessageContentImageFile, MessageContentText, Run, ThreadMessage } from "openai/resources/beta/threads";
+import { ClientManager } from "./helpers/clients";
 
 export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, RespondServerlessEventObject> = async function (
   context,
   event,
   callback
 ) {
-  const openai = new OpenAI({ apiKey: context.OPENAI_API_KEY });
+  const openai = ClientManager.getOpenAIClient(context)
   const twiml_response = new Twilio.twiml.VoiceResponse();
   const response = new Twilio.Response();
 
@@ -18,8 +18,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   const newMessage = event.SpeechResult;
 
   const aiResponse = await generateAIResponse(newMessage);
-  console.log("string:", aiResponse)
-  if (aiResponse == null) return callback(aiResponse); // Return early if aiResponse is null or undefined
+  if (!aiResponse) return callback("Assistant failed to respond"); // Return early if response failed.
   const cleanedAiResponse = aiResponse.replace(/^\w+:\s*/i, "").trim();
 
   twiml_response.say({
@@ -51,7 +50,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
       return await updateThread(newMessage);
     } catch (error) {
       console.error("Error generating AI response:", error);
-      return null;
+      throw error;
     }
   }
 
@@ -84,23 +83,22 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   }
 
   async function retrieveMessagesFromThread(message: ThreadMessage) {
-    const pages = await openai.beta.threads.messages.list(callThread, { limit: 1, order: "desc" });
+    const pages = await openai.beta.threads.messages.list(callThread, { after: message.id, order: "asc" });
     let messages: ThreadMessage[] = []
+
     for await (const page of pages.iterPages()) {
       messages = messages.concat(page.getPaginatedItems())
     }
-
-    const formattedMessages = messages.flatMap(message => {
-      const splitMessages: MessageContentText[] = message.content.filter(isMessageContentText)
-      return splitMessages.map(singleMessage => {
-        return singleMessage.text.value
-      })
-    })
 
     function isMessageContentText(message: MessageContentText | MessageContentImageFile): message is MessageContentText {
       return message.type === "text"
     }
 
-    return formattedMessages[0];
+    const formattedMessages = messages.map(message => {
+      const textMessage: MessageContentText = message.content.filter(isMessageContentText)[0]
+      return textMessage.text.value;
+    })
+
+    return formattedMessages.join(" ");
   }
 }
