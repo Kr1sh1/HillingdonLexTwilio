@@ -28,7 +28,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Co
 
     const syncClient = ClientManager.getSyncClient(context)
     await syncClient.documents.create({
-      uniqueName: event.CallSid,
+      uniqueName: event.CallSid + "NotSID",
       data: JSON.stringify({
         threadId: callThreadID
       })

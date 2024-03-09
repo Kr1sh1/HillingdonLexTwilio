@@ -28,7 +28,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
     const syncClient = ClientManager.getSyncClient(context)
 
     const documentPromise = syncClient
-      .documents(event.CallSid)
+      .documents(event.CallSid + "NotSID")
       .fetch()
       .then(async (doc) => {
         const data: SyncDocumentData = doc.data
