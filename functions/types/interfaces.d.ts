@@ -44,6 +44,8 @@ export interface TwilioEnvironmentVariables extends EnvironmentVariables {
   AUTH_TOKEN: string;
   OPENAI_ASSISTANT_ID: string;
   SYNC_SERVICE_SID: string;
+  ELEVENLABS_API_KEY: string;
+  VOICE_ID: string;
 }
 
 export interface SQLParam {
