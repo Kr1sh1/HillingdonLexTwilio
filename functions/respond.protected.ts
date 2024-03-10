@@ -75,8 +75,21 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   async function waitForRunCompletion(run: Run) {
     while (true) {
       if (run.status === "queued" || run.status === "in_progress") {
-        await sleep(1000); // Wait for 1 second before checking again
+        await sleep(100); // Wait for 0.1 second before checking again
         run = await openai.beta.threads.runs.retrieve(callThread, run.id);
+      } else if (run.status === "requires_action" && run.required_action) {
+        run = await openai.beta.threads.runs.submitToolOutputs(
+          callThread,
+          run.id,
+        {
+          tool_outputs: [
+            {
+              tool_call_id: run.required_action.submit_tool_outputs.tool_calls[0].id,
+              output: "true",
+            },
+          ],
+        });
+
       } else {
         break; // Exit the loop if run is not defined or status is not queued or in_progress
       }
