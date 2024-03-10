@@ -1,15 +1,18 @@
-import OpenAI from "openai";
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
 import { RespondServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
 import { sleep } from "openai/core";
-import { MessageContentImageFile, MessageContentText, Run, ThreadMessage } from "openai/resources/beta/threads";
+import { Run, ThreadMessage } from "openai/resources/beta/threads";
+import { ClientManager } from "./helpers/clients";
+import { fetchThreadConversation } from './helpers/assistant';
 
 export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, RespondServerlessEventObject> = async function (
   context,
   event,
   callback
 ) {
-  const openai = new OpenAI({ apiKey: context.OPENAI_API_KEY });
+  if (event.CallStatus !== "in-progress") return callback(null)
+
+  const openai = ClientManager.getOpenAIClient(context)
   const twiml_response = new Twilio.twiml.VoiceResponse();
   const response = new Twilio.Response();
 
@@ -18,8 +21,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   const newMessage = event.SpeechResult;
 
   const aiResponse = await generateAIResponse(newMessage);
-  console.log("string:", aiResponse)
-  if (aiResponse == null) return callback(aiResponse); // Return early if aiResponse is null or undefined
+  if (!aiResponse) return callback("Assistant failed to respond"); // Return early if response failed.
   const cleanedAiResponse = aiResponse.replace(/^\w+:\s*/i, "").trim();
 
   twiml_response.say({
@@ -51,7 +53,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
       return await updateThread(newMessage);
     } catch (error) {
       console.error("Error generating AI response:", error);
-      return null;
+      throw error;
     }
   }
 
@@ -97,23 +99,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   }
 
   async function retrieveMessagesFromThread(message: ThreadMessage) {
-    const pages = await openai.beta.threads.messages.list(callThread, { limit: 1, order: "desc" });
-    let messages: ThreadMessage[] = []
-    for await (const page of pages.iterPages()) {
-      messages = messages.concat(page.getPaginatedItems())
-    }
-
-    const formattedMessages = messages.flatMap(message => {
-      const splitMessages: MessageContentText[] = message.content.filter(isMessageContentText)
-      return splitMessages.map(singleMessage => {
-        return singleMessage.text.value
-      })
-    })
-
-    function isMessageContentText(message: MessageContentText | MessageContentImageFile): message is MessageContentText {
-      return message.type === "text"
-    }
-
-    return formattedMessages[0];
+    const conversation = await fetchThreadConversation(openai, callThread, { after: message.id, order: "asc" })
+    return conversation.map(message => message.content).join(" ")
   }
 }

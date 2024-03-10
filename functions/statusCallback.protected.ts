@@ -1,7 +1,9 @@
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
-import { SQLParam, StatusCallbackServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
+import { SQLParam, StatusCallbackServerlessEventObject, SyncDocumentData, TwilioEnvironmentVariables } from './types/interfaces';
 import { connect, config, Request, TYPES } from 'mssql';
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { ClientManager } from './helpers/clients';
+import { fetchThreadConversation } from './helpers/assistant';
 
 type SQLParams = SQLParam[]
 
@@ -15,13 +17,28 @@ const constructRequest = (request: Request, params: SQLParams) => {
   return { columns, values, builtRequest }
 }
 
-export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, StatusCallbackServerlessEventObject> = async function(
+export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, StatusCallbackServerlessEventObject> = async function (
   context,
   event,
   callback,
 ) {
   if (event.CallStatus === "completed") {
-    const callDetailsPromise = new Twilio.Twilio(context.ACCOUNT_SID, context.AUTH_TOKEN).calls(event.CallSid)
+    const twilioClient = ClientManager.getTwilioClient(context)
+    const syncClient = ClientManager.getSyncClient(context)
+
+    const documentPromise = syncClient
+      .documents(event.CallSid + "NotSID")
+      .fetch()
+      .then(async (doc) => {
+        const data: SyncDocumentData = doc.data
+        const S3Upload = uploadConversationToS3(data.threadId)
+        await Promise.all([S3Upload]); // More promises to go here for tasks being sent into SQS
+        return doc;
+      })
+      .then((doc) => doc.remove())
+
+    const callDetailsPromise = twilioClient
+      .calls(event.CallSid)
       .fetch()
       .then((call) => {
         return {
@@ -44,7 +61,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
       }
     };
 
-    const [pool, logFileCreated, callDetails] = await Promise.all([connect(serverConfig), checkLogFileCreated(), callDetailsPromise])
+    const [pool, callDetails] = await Promise.all([connect(serverConfig), callDetailsPromise])
 
     let insertParams: SQLParams = [
       {
@@ -66,16 +83,13 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
         fieldName: "callDurationInSeconds",
         value: callDetails.duration,
         type: TYPES.SmallInt
-      }
-    ]
-
-    if (logFileCreated) {
-      insertParams.push({
+      },
+      {
         fieldName: "logFileName",
         value: `${event.CallSid}.json`,
         type: TYPES.VarChar
-      })
-    }
+      }
+    ]
 
     const { columns, values, builtRequest } = constructRequest(pool.request(), insertParams)
 
@@ -85,31 +99,22 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
     `
 
     await builtRequest.query(sqlQuery)
-    await pool.close()
+    await Promise.all([pool.close(), documentPromise])
   }
-  const response = new Response();
-  return callback(null, response)
+  return callback(null)
 
-  async function checkLogFileCreated() {
-    const s3Client = new S3Client(
-      {
-        region: context.AWS_REGION,
-        credentials: {
-          accessKeyId: context.AWS_ACCESS_KEY_ID,
-          secretAccessKey: context.AWS_SECRET_ACCESS_KEY,
-        }
-      }
-    );
-    return s3Client.send(
-      new GetObjectCommand({
+  async function uploadConversationToS3(threadId: string) {
+    const openai = ClientManager.getOpenAIClient(context)
+    const conversation = await fetchThreadConversation(openai, threadId, { order: "asc" })
+
+    const s3Client = ClientManager.getS3Client(context)
+
+    await s3Client.send(
+      new PutObjectCommand({
         Bucket: context.AWS_S3_BUCKET,
         Key: `${event.CallSid}.json`,
+        Body: JSON.stringify(conversation),
       })
-    )
-      .then(() => true)
-      .catch((error) => {
-        if (error.Code != "NoSuchKey") throw error;
-        return false;
-      })
+    );
   }
 }

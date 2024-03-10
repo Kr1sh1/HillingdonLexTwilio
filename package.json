@@ -3,7 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "tsc",
+    "typeCheck": "tsc --noEmit",
+    "build": "tsc --noEmit && node esbuild.config.js",
     "start": "twilio-run start",
     "debug": "twilio-run start --inspect"
   },
@@ -17,6 +18,7 @@
   },
   "devDependencies": {
     "@types/mssql": "^9.1.5",
+    "esbuild": "0.20.1",
     "twilio-run": "^3.5.4",
     "typescript": "^5.3.3"
   }

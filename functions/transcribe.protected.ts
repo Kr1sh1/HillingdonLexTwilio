@@ -1,6 +1,6 @@
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
 import { CommonServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
-import OpenAI from 'openai';
+import { ClientManager } from './helpers/clients';
 
 export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, CommonServerlessEventObject> = async function (
   context,
@@ -12,8 +12,6 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Co
   // Create a TwiML Voice Response object to build the response
   const twiml_response = new Twilio.twiml.VoiceResponse();
 
-
-
   // If the call has just started
   if (!event.request.cookies.initiated) {
     // Greet the user with a message using AWS Polly Neural voice
@@ -24,9 +22,17 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Co
     );
 
     // Initialise OpenAI communication
-    const openai = new OpenAI({ apiKey: context.OPENAI_API_KEY });
+    const openai = ClientManager.getOpenAIClient(context)
     const callThread = await openai.beta.threads.create();
     const callThreadID = callThread.id;
+
+    const syncClient = ClientManager.getSyncClient(context)
+    await syncClient.documents.create({
+      uniqueName: event.CallSid + "NotSID",
+      data: JSON.stringify({
+        threadId: callThreadID
+      })
+    })
 
     response.setCookie('initiated', "true", ['Path=/']);
     response.setCookie('threadID', callThreadID, ['Path=/']);
@@ -38,6 +44,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Co
     speechModel: 'experimental_conversations', // Use the conversation-based speech recognition model
     input: ['speech'], // Specify speech as the input type
     action: '/respond', // Send the collected input to /respond
+    actionOnEmptyResult: true,
   });
 
   // Set the response content type to XML (TwiML)
