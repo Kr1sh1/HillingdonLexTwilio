@@ -34,7 +34,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
         await Promise.all([S3Upload]); // More promises to go here for tasks being sent into SQS
         return doc;
       })
-      .then((doc) => doc.remove())
+      // .then((doc) => doc.remove())
 
     const callDetailsPromise = twilioClient
       .calls(event.CallSid)

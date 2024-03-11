@@ -57,7 +57,7 @@ export interface SQLParam {
 
 export interface SyncDocumentData {
   threadId: string;
-  tasks: Object;
+  tasks: object;
 }
 
 export interface Message {
