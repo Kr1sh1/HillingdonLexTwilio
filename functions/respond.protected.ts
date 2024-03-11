@@ -23,27 +23,37 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   const newMessage = event.SpeechResult;
 
   const aiResponse = await generateAIResponse(newMessage);
-  if (!aiResponse) return callback("Assistant failed to respond"); // Return early if response failed.
-  const cleanedAiResponse = aiResponse.replace(/^\w+:\s*/i, "").trim();
+  if (!aiResponse.text) return callback("Assistant failed to respond"); // Return early if response failed.
+  const cleanedAiResponse = aiResponse.text.replace(/^\w+:\s*/i, "").trim();
 
   twiml_response.say({ voice: "Polly.Joanna-Neural" }, cleanedAiResponse);
 
-  twiml_response.redirect({
-    method: "POST",
-  },
-    `/transcribe`
-  );
+  switch (aiResponse.action) {
+    case AIAction.NONE:
+      twiml_response.redirect({ method: "POST" }, "/transcribe");
+      break;
+    case AIAction.TRANSFER:
+    case AIAction.TERMINATE:
+      break
+  }
 
   response.appendHeader("Content-Type", "application/xml");
   response.setBody(twiml_response.toString());
 
-  return callback(null, response);
+  await Promise.all(aiResponse.promises)
 
   return callback(null, response);
 
-  async function generateAIResponse(newMessage: string) {
+  async function generateAIResponse(newMessage: string): Promise<AIResponse> {
     try {
-      return await updateThread(newMessage);
+      const message = await addMessageToThread(openai, threadId, newMessage);
+      const run = await startNewRun(openai, threadId, context.OPENAI_ASSISTANT_ID)
+      const result = await waitForRunCompletion(run);
+      const text = await fetchAssistantResponse(openai, threadId, message)
+      return {
+        text,
+        ...result
+      }
     } catch (error) {
       console.error("Error generating AI response:", error);
       throw error;
@@ -51,27 +61,49 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   }
 
   async function waitForRunCompletion(run: Run) {
+    let results: toolOutput[] = []
     while (true) {
       if (run.status === "queued" || run.status === "in_progress") {
         await sleep(100); // Wait for 0.1 second before checking again
-        run = await openai.beta.threads.runs.retrieve(callThread, run.id);
-      } else if (run.status === "requires_action" && run.required_action) {
-        run = await openai.beta.threads.runs.submitToolOutputs(
-          callThread,
-          run.id,
-        {
-          tool_outputs: [
-            {
-              tool_call_id: run.required_action.submit_tool_outputs.tool_calls[0].id,
-              output: "true",
-            },
-          ],
+        run = await openai.beta.threads.runs.retrieve(threadId, run.id);
+      } else if (run.status === "requires_action" && run.required_action?.type == "submit_tool_outputs") {
+        const outputs = processToolCalls(run.required_action.submit_tool_outputs.tool_calls)
+        results = results.concat(outputs)
+        run = await openai.beta.threads.runs.submitToolOutputs(threadId, run.id, {
+          tool_outputs: outputs.map(output => {
+            return {
+              tool_call_id: output.id,
+              output: output.functionOutput.response
+            }
+          })
         });
       } else {
         break; // Exit the loop if status is not queued or in_progress
       }
     }
+    return filterResults(results)
   }
 
+  function filterResults(results: toolOutput[]) {
+    const promises = results.flatMap(result => result.functionOutput.promises ?? [])
+    let action = AIAction.NONE
+    for (const result of results) {
+      if (result.functionOutput.action !== AIAction.NONE) {
+        action = result.functionOutput.action
+        break
+      }
+    }
+    return { action, promises }
+  }
+
+  function processToolCalls(toolCalls: RequiredActionFunctionToolCall[]): toolOutput[] {
+    return toolCalls.map((tool_call) => {
+      const parameters = JSON.parse(tool_call.function.arguments)
+      const processor = taskProcessors[tool_call.function.name]
+      return {
+        id: tool_call.id,
+        functionOutput: processor(parameters, context, event),
+      }
+    })
   }
 }
