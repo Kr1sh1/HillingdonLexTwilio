@@ -16,11 +16,16 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
 
   const openai = ClientManager.getOpenAIClient(context)
   const twiml_response = new Twilio.twiml.VoiceResponse();
-  const response = new Twilio.Response();
 
   const cookies = event.request.cookies;
   const threadId = cookies.threadID;
   const newMessage = event.SpeechResult;
+
+  if (!newMessage) {
+    twiml_response.say({ voice: "Polly.Joanna-Neural" }, "Sorry, I didn't catch that.");
+    twiml_response.redirect({ method: "POST" }, "/transcribe");
+    return callback(null, twiml_response)
+  }
 
   const aiResponse = await generateAIResponse(newMessage);
   if (!aiResponse.text) return callback("Assistant failed to respond"); // Return early if response failed.
@@ -37,12 +42,9 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
       break
   }
 
-  response.appendHeader("Content-Type", "application/xml");
-  response.setBody(twiml_response.toString());
-
   await Promise.all(aiResponse.promises)
 
-  return callback(null, response);
+  return callback(null, twiml_response);
 
   async function generateAIResponse(newMessage: string): Promise<AIResponse> {
     try {
