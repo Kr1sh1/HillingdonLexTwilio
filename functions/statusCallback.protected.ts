@@ -1,11 +1,10 @@
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
-import { SQLParam, StatusCallbackServerlessEventObject, SyncDocumentData, TwilioEnvironmentVariables } from './types/interfaces';
+import { StatusCallbackServerlessEventObject, SyncDocumentData, TwilioEnvironmentVariables } from './types/interfaces';
 import { connect, config, Request, TYPES } from 'mssql';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { ClientManager } from './helpers/clients';
 import { fetchThreadConversation } from './helpers/assistant';
-
-type SQLParams = SQLParam[]
+import { SQLParams } from './types/types';
 
 const constructRequest = (request: Request, params: SQLParams) => {
   const fieldNames = params.map((param) => param.fieldName)

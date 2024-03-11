@@ -1,10 +1,8 @@
 import { S3Client } from "@aws-sdk/client-s3";
-import { Context as Context_, ServiceContext } from "@twilio-labs/serverless-runtime-types/types";
+import { ServiceContext } from "@twilio-labs/serverless-runtime-types/types";
 import OpenAI from "openai";
 import { Twilio } from "twilio";
-import { TwilioEnvironmentVariables } from "../types/interfaces";
-
-type Context = Context_<TwilioEnvironmentVariables>;
+import { Context } from "../types/types";
 
 export class ClientManager {
   private static openAIClient: OpenAI | null = null
