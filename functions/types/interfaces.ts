@@ -3,6 +3,7 @@ import {
   ServerlessEventObject,
 } from '@twilio-labs/serverless-runtime-types/types';
 import { ISqlType } from 'mssql';
+import { AIAction } from './enums';
 
 interface CommonEventBody {
   CallStatus: string;
@@ -56,9 +57,27 @@ export interface SQLParam {
 
 export interface SyncDocumentData {
   threadId: string;
+  tasks: Object;
 }
 
 export interface Message {
   role: "user" | "assistant";
   content: string;
+}
+
+export interface AIResponse {
+  text: string;
+  action: AIAction;
+  promises: Promise<any>[];
+}
+
+export interface functionOutput {
+  action: AIAction;
+  response: string;
+  promises?: Promise<any>[];
+}
+
+export interface toolOutput {
+  id: string;
+  functionOutput: functionOutput;
 }
