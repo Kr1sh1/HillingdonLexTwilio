@@ -34,6 +34,7 @@ export interface TwilioEnvironmentVariables extends EnvironmentVariables {
   OPENAI_API_KEY: string;
   AWS_REGION: string;
   AWS_S3_BUCKET: string;
+  AWS_SQS_URL: string;
   AWS_ACCESS_KEY_ID: string;
   AWS_SECRET_ACCESS_KEY: string;
   RDS_PASSWORD: string;
@@ -55,9 +56,13 @@ export interface SQLParam {
   value: string | number | Date;
 }
 
+export interface Tasks {
+  [key: string]: any
+}
+
 export interface SyncDocumentData {
   threadId: string;
-  tasks: Object;
+  tasks: Tasks;
 }
 
 export interface Message {
