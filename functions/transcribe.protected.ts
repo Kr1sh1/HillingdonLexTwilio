@@ -31,7 +31,8 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Co
       uniqueName: event.CallSid + "NotSID",
       data: JSON.stringify({
         threadId: callThreadID
-      })
+      }),
+      ttl: 3600,
     })
 
     response.setCookie('initiated', "true", ['Path=/']);
