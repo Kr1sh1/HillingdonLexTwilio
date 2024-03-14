@@ -1,16 +1,26 @@
 import { S3Client } from "@aws-sdk/client-s3";
-import { Context as Context_, ServiceContext } from "@twilio-labs/serverless-runtime-types/types";
+import { ServiceContext } from "@twilio-labs/serverless-runtime-types/types";
 import OpenAI from "openai";
 import { Twilio } from "twilio";
-import { TwilioEnvironmentVariables } from "../types/interfaces";
-
-type Context = Context_<TwilioEnvironmentVariables>;
+import { Context } from "../types/types";
+import { SQSClient } from "@aws-sdk/client-sqs";
 
 export class ClientManager {
-  private static openAIClient: OpenAI | null = null
+  private static openAIClient: OpenAI | null = null;
   private static s3Client: S3Client | null = null;
+  private static sqsClient: SQSClient | null = null;
   private static twilioClient: Twilio | null = null;
   private static syncClient: ServiceContext | null = null;
+
+  private static getAWSConfig(context: Context) {
+    return {
+      region: context.AWS_REGION,
+      credentials: {
+        accessKeyId: context.AWS_ACCESS_KEY_ID,
+        secretAccessKey: context.AWS_SECRET_ACCESS_KEY,
+      }
+    }
+  }
 
   public static getOpenAIClient(context: Context) {
     if (!this.openAIClient) {
@@ -21,15 +31,16 @@ export class ClientManager {
 
   public static getS3Client(context: Context) {
     if (!this.s3Client) {
-      this.s3Client = new S3Client({
-        region: context.AWS_REGION,
-        credentials: {
-          accessKeyId: context.AWS_ACCESS_KEY_ID,
-          secretAccessKey: context.AWS_SECRET_ACCESS_KEY,
-        }
-      });
+      this.s3Client = new S3Client(this.getAWSConfig(context));
     }
     return this.s3Client;
+  }
+
+  public static getSQSClient(context: Context) {
+    if (!this.sqsClient) {
+      this.sqsClient = new SQSClient(this.getAWSConfig(context))
+    }
+    return this.sqsClient;
   }
 
   public static getTwilioClient(context: Context) {

@@ -1,11 +1,11 @@
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
-import { SQLParam, StatusCallbackServerlessEventObject, SyncDocumentData, TwilioEnvironmentVariables } from './types/interfaces';
+import { StatusCallbackServerlessEventObject, SyncDocumentData, Tasks, TwilioEnvironmentVariables } from './types/interfaces';
 import { connect, config, Request, TYPES } from 'mssql';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { ClientManager } from './helpers/clients';
 import { fetchThreadConversation } from './helpers/assistant';
-
-type SQLParams = SQLParam[]
+import { SQLParams } from './types/types';
+import { SendMessageBatchCommand, SendMessageBatchRequestEntry } from '@aws-sdk/client-sqs';
 
 const constructRequest = (request: Request, params: SQLParams) => {
   const fieldNames = params.map((param) => param.fieldName)
@@ -32,10 +32,10 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
       .then(async (doc) => {
         const data: SyncDocumentData = doc.data
         const S3Upload = uploadConversationToS3(data.threadId)
-        await Promise.all([S3Upload]); // More promises to go here for tasks being sent into SQS
+        const SQSUpload = uploadTaskstoSQS(data.tasks)
+        await Promise.all([S3Upload, SQSUpload]);
         return doc;
       })
-      .then((doc) => doc.remove())
 
     const callDetailsPromise = twilioClient
       .calls(event.CallSid)
@@ -116,5 +116,32 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, St
         Body: JSON.stringify(conversation),
       })
     );
+  }
+
+  async function uploadTaskstoSQS(tasks: Tasks) {
+    const sqsClient = ClientManager.getSQSClient(context)
+
+    const entries = Object.entries(tasks).map(([taskName, taskParameters]) => {
+      return {
+        Id: taskName,
+        MessageBody: JSON.stringify({
+          callSid: event.CallSid,
+          phoneNumber: event.From,
+          taskName,
+          taskParameters,
+        }),
+        MessageGroupId: taskName,
+        MessageDeduplicationId: event.CallSid + taskName
+      } as SendMessageBatchRequestEntry
+    })
+
+    if (!entries.length) return;
+
+    await sqsClient.send(
+      new SendMessageBatchCommand({
+        QueueUrl: context.AWS_SQS_URL,
+        Entries: entries,
+      })
+    )
   }
 }
