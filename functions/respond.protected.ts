@@ -38,6 +38,10 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
       twiml_response.redirect({ method: "POST" }, "/transcribe");
       break;
     case AIAction.TRANSFER:
+      twiml_response
+        .dial({ timeout: 10 })
+        .number({ statusCallback: "/statusCallback", statusCallbackEvent: ["initiated"] }, "+448088127045")
+      break
     case AIAction.TERMINATE:
       break
   }
