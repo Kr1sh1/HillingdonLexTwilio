@@ -28,7 +28,6 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   }
 
   const aiResponse = await generateAIResponse(newMessage);
-  if (!aiResponse.text) return callback("Assistant failed to respond"); // Return early if response failed.
   const cleanedAiResponse = aiResponse.text.replace(/^\w+:\s*/i, "").trim();
 
   twiml_response.say({ voice: "Polly.Joanna-Neural" }, cleanedAiResponse);

@@ -18,7 +18,7 @@ export async function fetchThreadConversation(openai: OpenAI, threadId: string, 
     const textMessage: TextContentBlock = message.content.filter(isMessageContentText)[0]
     return {
       role: message.role,
-      content: textMessage.text.value
+      content: textMessage?.text?.value ?? ""
     }
   })
 
