@@ -90,8 +90,6 @@ This repository has 3 core branches that deploy to different environments on Twi
 
 Pushing anything to these branches results in a fresh deployment.
 
-Currently the phone numbers can only be called by phone numbers that have been verified in the Twilio Console. Please request us if you'd like to have your number verified in order to call these numbers.
-
 |Branch Name|Phone Number|
 |-----------|------------|
 |main|+44 78621 32308|

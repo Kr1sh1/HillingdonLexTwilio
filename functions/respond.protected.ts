@@ -1,5 +1,5 @@
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
-import { AIResponse, RespondServerlessEventObject, SyncDocumentData, TwilioEnvironmentVariables, toolOutput } from './types/interfaces';
+import { AIResponse, RespondServerlessEventObject, TwilioEnvironmentVariables, ToolOutput } from './types/interfaces';
 import { sleep } from "openai/core";
 import { RequiredActionFunctionToolCall, Run } from "openai/resources/beta/threads";
 import { ClientManager } from "./helpers/clients";
@@ -38,6 +38,10 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
       twiml_response.redirect({ method: "POST" }, "/transcribe");
       break;
     case AIAction.TRANSFER:
+      twiml_response
+        .dial({ timeout: 10 })
+        .number({ statusCallback: "/statusCallback", statusCallbackEvent: ["initiated"] }, "+448088127045")
+      break
     case AIAction.TERMINATE:
       break
   }
@@ -63,7 +67,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   }
 
   async function waitForRunCompletion(run: Run) {
-    let results: toolOutput[] = []
+    let results: ToolOutput[] = []
     while (true) {
       if (run.status === "queued" || run.status === "in_progress") {
         await sleep(100); // Wait for 0.1 second before checking again
@@ -86,7 +90,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
     return filterResults(results)
   }
 
-  function filterResults(results: toolOutput[]) {
+  function filterResults(results: ToolOutput[]) {
     const promises = results.flatMap(result => result.functionOutput.promises ?? [])
     let action = AIAction.NONE
     for (const result of results) {
@@ -98,7 +102,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
     return { action, promises }
   }
 
-  function processToolCalls(toolCalls: RequiredActionFunctionToolCall[]): toolOutput[] {
+  function processToolCalls(toolCalls: RequiredActionFunctionToolCall[]): ToolOutput[] {
     return toolCalls.map((tool_call) => {
       const parameters = JSON.parse(tool_call.function.arguments)
       const processor = taskProcessors[tool_call.function.name]

@@ -18,6 +18,7 @@ interface RespondEventBody extends CommonEventBody {
 interface StatusCallbackEventBody extends CommonEventBody {
   Timestamp: string;
   CallDuration: string;
+  ParentCallSid?: string;
 }
 
 interface Cookies {
@@ -63,6 +64,7 @@ export interface Tasks {
 export interface SyncDocumentData {
   threadId: string;
   tasks: Tasks;
+  uploaded: boolean;
 }
 
 export interface Message {
@@ -76,13 +78,20 @@ export interface AIResponse {
   promises: Promise<any>[];
 }
 
-export interface functionOutput {
+export interface FunctionOutput {
   action: AIAction;
   response: string;
   promises?: Promise<any>[];
 }
 
-export interface toolOutput {
+export interface ToolOutput {
   id: string;
-  functionOutput: functionOutput;
+  functionOutput: FunctionOutput;
+}
+
+export interface CallDetails {
+  from: string;
+  startTime: Date;
+  endTime: Date;
+  duration: number;
 }
