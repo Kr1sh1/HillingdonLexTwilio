@@ -32,8 +32,9 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Co
       data: JSON.stringify({
         threadId: callThreadID,
         tasks: {},
+        uploaded: false,
       }),
-      ttl: 3600,
+      ttl: 18000,
     })
 
     response.setCookie('initiated', "true", ['Path=/']);
