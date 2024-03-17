@@ -18,7 +18,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Co
     twiml_response.say({
       voice: 'Polly.Joanna-Neural',
     },
-      "Branch dev 2"
+      "This is Hillingdon Lex"
     );
 
     // Initialise OpenAI communication
