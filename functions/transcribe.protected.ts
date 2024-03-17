@@ -43,8 +43,9 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Co
 
   // Listen to the user's speech and pass the input to the /respond Function
   twiml_response.gather({
-    speechTimeout: 'auto', // Automatically determine the end of user speech
-    speechModel: 'experimental_conversations', // Use the conversation-based speech recognition model
+    speechTimeout: '2',
+    speechModel: 'phone_call',
+    enhanced: true,
     input: ['speech'], // Specify speech as the input type
     action: '/respond', // Send the collected input to /respond
     actionOnEmptyResult: true,
