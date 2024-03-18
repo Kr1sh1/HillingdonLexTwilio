@@ -5,6 +5,10 @@
       "env": ".env.twilio_environment",
       "overrideExistingProject": true,
       "serviceName": "HillingdonLexTwilio"
+    },
+    "start": {
+      "env": ".env"
     }
-  }
+  },
+  "functionsFolder": "compiled"
 }

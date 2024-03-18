@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES6",
+    "module": "commonjs",
+    "outDir": "./compiled",
+    "strict": true,
+    "esModuleInterop": true,
+    "types": ["@twilio-labs/serverless-runtime-types/index.d.ts", "jest"],
+    // Twilio types library throw an error that we can do nothing about
+    "skipLibCheck": true,
+    "noEmitOnError": true,
+    "sourceMap": true
+  },
+  "include": ["functions/**/*.ts", "test/**/*.ts"],
+}
