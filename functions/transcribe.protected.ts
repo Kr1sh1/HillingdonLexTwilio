@@ -18,7 +18,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Co
     twiml_response.say({
       voice: 'Polly.Joanna-Neural',
     },
-      "Branch dev 2"
+      "This is Hillingdon Lex"
     );
 
     // Initialise OpenAI communication
@@ -30,8 +30,11 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Co
     await syncClient.documents.create({
       uniqueName: event.CallSid + "NotSID",
       data: JSON.stringify({
-        threadId: callThreadID
-      })
+        threadId: callThreadID,
+        tasks: {},
+        uploaded: false,
+      }),
+      ttl: 18000,
     })
 
     response.setCookie('initiated', "true", ['Path=/']);
