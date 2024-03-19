@@ -18,6 +18,8 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   const cookies = event.request.cookies;
   const callThread = cookies.threadID;
   const newMessage = event.SpeechResult;
+  const voiceId = context.VOICE_ID;
+  const model = 'eleven_multilingual_v2';
 
   await generateAIResponse(newMessage);
 
@@ -32,6 +34,26 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   response.setBody(twiml_response.toString());
 
   return callback(null, response);
+
+  async function sendChunkToElevenLabs(responseChunk : string) {
+     const outputFormat = 'ulaw_8000';
+     const response = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=${outputFormat}&optimize_streaming_latency=3`,
+        {
+          method: 'POST',
+          headers: {
+            'xi-api-key': context.ELEVENLABS_API_KEY,
+            'Content-Type': 'application/json',
+            accept: 'audio/wav',
+          },
+          body: JSON.stringify({
+            model_id: model,
+            text: responseChunk,
+          }),
+        }
+      );
+      const audioArrayBuffer = await response.arrayBuffer();
+  }
 
   async function addMessageToThread(newMessage: string) {
     return await openai.beta.threads.messages.create(callThread, {
