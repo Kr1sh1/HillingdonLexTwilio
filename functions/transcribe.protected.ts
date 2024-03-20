@@ -2,6 +2,15 @@ import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-typ
 import { CommonServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
 import { ClientManager } from './helpers/clients';
 
+const hints = new Set([
+  "$OOV_CLASS_POSTALCODE", "$ADDRESSNUM",
+  "address", "my", "help", "recycling", "bag", "bags", "my address is", "order",
+  "street", "streets", "name", "street name", "streets name", "recycling bags",
+  "correct", "wrong", "transfer", "talk", "human", "yes", "no", "hi", "hello",
+  "postcode", "post", "code", "thank you", "thanks", "house", "number", "house number",
+  "end the call", "end", "call"
+])
+
 export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, CommonServerlessEventObject> = async function (
   context,
   event,
@@ -46,6 +55,8 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Co
     speechTimeout: '2',
     speechModel: 'phone_call',
     enhanced: true,
+    hints: Array.from(hints).join(", "),
+    language: "en-GB",
     input: ['speech'], // Specify speech as the input type
     action: '/respond', // Send the collected input to /respond
     actionOnEmptyResult: true,
