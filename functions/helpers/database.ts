@@ -30,27 +30,32 @@ export function makeServerConfig(context: Context) {
 export function makeSQLParams(callDetails: CallDetails, callSid: string) {
   return [
     {
-      fieldName: "callerNumber",
+      fieldName: "CallID",
+      value: callSid,
+      type: TYPES.VarChar
+    },
+    {
+      fieldName: "CallerNumber",
       value: callDetails.from,
       type: TYPES.VarChar
     },
     {
-      fieldName: "callStartTimestamp",
+      fieldName: "CallStartTimeStamp",
       value: callDetails.startTime,
       type: TYPES.DateTime
     },
     {
-      fieldName: "callEndTimestamp",
+      fieldName: "CallEndTimeStamp",
       value: callDetails.endTime,
       type: TYPES.DateTime
     },
     {
-      fieldName: "callDurationInSeconds",
+      fieldName: "DurationSeconds",
       value: callDetails.duration,
       type: TYPES.SmallInt
     },
     {
-      fieldName: "logFileName",
+      fieldName: "LogFileName",
       value: `${callSid}.json`,
       type: TYPES.VarChar
     }
@@ -81,8 +86,8 @@ export async function uploadCallRecordsToRDS(context: Context, callSid: string) 
 
   const { columns, values, builtRequest } = constructRequest(pool.request(), insertParams)
 
-  let sqlQuery = `
-    INSERT INTO CallRecords (${columns})
+  const sqlQuery = `
+    INSERT INTO Calls (${columns})
     VALUES (${values})
     `
 
