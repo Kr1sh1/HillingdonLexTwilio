@@ -18,7 +18,7 @@ function orderRecyclingBag(parameters: any, context: Context, event: RespondServ
           ...data,
           tasks: {
             ...data.tasks,
-            orderRecyclingBag: parameters
+            OrderRecyclingBag: parameters
           }
         }
       })
