@@ -49,6 +49,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Co
     input: ['speech'], // Specify speech as the input type
     action: '/respond', // Send the collected input to /respond
     actionOnEmptyResult: true,
+    profanityFilter: false,
   });
 
   // Set the response content type to XML (TwiML)
