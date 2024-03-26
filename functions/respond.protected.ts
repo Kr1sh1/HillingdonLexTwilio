@@ -1,8 +1,10 @@
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
 import { RespondServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
-import { sleep } from "openai/core";
-import { Run } from "openai/resources/beta/threads";
 import { ClientManager } from "./helpers/clients";
+import { WriteStream} from 'fs';
+import { Writable } from 'stream';
+import { WebSocket } from "ws"
+import {uploadAudioToS3} from "./helpers/aws";
 
 
 export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, RespondServerlessEventObject> = async function (
@@ -20,17 +22,11 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   const newMessage = event.SpeechResult;
   const voiceId = context.VOICE_ID;
   const model = 'eleven_multilingual_v2';
-  const audioBuffers: ArrayBuffer[] = [];
 
-  await generateAIResponse(newMessage);
+  const audio = await generateAIResponse(newMessage);
+  const signedAudiolink = await uploadAudioToS3(audio);
 
-  // Accumulate audio Chunks
-  const concatenatedBuffer = audioBuffers.reduce((acc, buffer) => {
-    const tmp = new Uint8Array(acc.byteLength + buffer.byteLength);
-    tmp.set(new Uint8Array(acc), 0);
-    tmp.set(new Uint8Array(buffer), acc.byteLength);
-    return tmp.buffer;
-  }, new Uint8Array(0).buffer);
+  twiml_response.play(signedAudiolink);
 
   twiml_response.redirect({
       method: "POST",
@@ -42,104 +38,159 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
 
   return callback(null, response);
 
-  async function sendChunkToElevenLabs(responseChunk: string) {
-    const outputFormat = 'ulaw_8000';
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=${outputFormat}&optimize_streaming_latency=3`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': context.ELEVENLABS_API_KEY,
-          'Content-Type': 'application/json',
-          accept: 'audio/wav',
-        },
-        body: JSON.stringify({
-          model_id: model,
-          text: responseChunk,
-        }),
+  function initializeWebSocketConnection(outputStream: WriteStream): WebSocket {
+    const wsUrl = `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input?model_id=${model}`;
+    const socket = new WebSocket(wsUrl);
+    const bosMessage = {
+      "text": " ",
+      "voice_settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.8
+      },
+      "xi_api_key": context.apiKey,
+    };
+
+    socket.onopen = () => {
+      console.log('WebSocket connection opened...');
+      // Send the bosMessage when the connection is opened
+      socket.send(JSON.stringify(bosMessage));
+    };
+
+    socket.onerror = (error) => {
+      console.error(`WebSocket Error: ${error.message}`);
+      outputStream.close();
+    };
+
+    socket.onclose = (event) => {
+      if (event.wasClean) {
+        console.info(`Connection closed cleanly, code=${event.code}, reason=${event.reason}`);
+      } else {
+        console.warn('Connection died');
       }
-    );
-    return response;
+    };
+
+    socket.onmessage = (event) => {
+      const response = JSON.parse(event.data.toString());
+
+      console.log("Server responded");
+
+      if (response.audio) {
+        const audioChunk = Buffer.from(response.audio, 'base64');
+        outputStream.write(audioChunk);
+      } else {
+        console.log("No audio data in the response");
+      }
+
+      if (response.isFinal) {
+        outputStream.end();
+        socket.close();
+      }
+    };
+
+    return socket;
   }
 
-    async function collectAudioChunks(responseChunk: string) {
-      const response = await sendChunkToElevenLabs(responseChunk);
-      const audioArrayBuffer = await response.arrayBuffer();
-      audioBuffers.push(audioArrayBuffer);
-    }
+  async function sendTextForAudioGeneration(socket: WebSocket, text: string): Promise<void> {
+    const message = {
+      text,
+      "voice_settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.8
+      },
+      // flush: text === ""
+    };
+    console.log("send: ", text)
+    socket.send(JSON.stringify(message));
+  }
 
-    
-    async function addMessageToThread(newMessage: string) {
-      return await openai.beta.threads.messages.create(callThread, {
-        role: "user",
-        content: newMessage
-      });
-    }
-
-    async function generateAIResponse(newMessage: string) {
-      try {
-        await addMessageToThread(newMessage);
-        const run = await startNewRun();
-
-        // Stream responses and voice each chunk
-        run.on('messageDelta', async (delta: any) => {
-          const responseText = delta.delta.content.map((content: any) => content.text.value).join('');
-          await collectAudioChunks(responseText);
-        });
-
-        // Wait for the run to complete
-        await run.finalMessages();
-
-        await handleRunStatuses(run);
-
-      } catch (error) {
-        console.error("Error generating AI response:", error);
-        throw error;
-      }
-    }
-
-    async function startNewRun() {
-      try {
-        const run = await openai.beta.threads.runs.createAndStream(callThread, {
-          assistant_id: context.OPENAI_ASSISTANT_ID,
-        });
-        return run;
-      } catch (error) {
-        console.error("Error starting new run:", error);
-        throw error;
-      }
-    }
-
-    async function handleRunStatuses(run: any) {
-      return new Promise<void>((resolve, reject) => {
-        run.on('runStepCreated', async (runStep: any) => {
-          if (runStep.status === "requires_action" && runStep.required_action) {
-            try {
-              // Submit tool outputs
-              await openai.beta.threads.runs.submitToolOutputs(callThread, run.id, {
-                tool_outputs: [
-                  {
-                    tool_call_id: runStep.required_action.submit_tool_outputs.tool_calls[0].id,
-                    output: "true",
-                  },
-                ],
-              });
-            } catch (error) {
-              reject(error);
+  async function generateAIResponse(newMessage: string): Promise<void> {
+    console.log('Inside generateAIResponseAndAudio function...');
+    try {
+       const outputStream = new Writable({
+            write(chunk, encoding, callback) {
+                console.log('Received audio chunk:', chunk);
+                callback();
             }
-          }
-        });
+       });
+      const socket = initializeWebSocketConnection(outputStream);
 
-        run.on('end', () => {
-          // Resolve the promise when the stream ends
-          resolve();
-        });
+      await addMessageToThread(newMessage);
+      const run = await startNewRun();
 
-        // Handle errors
-        run.on('error', (error: any) => {
-          reject(error);
-        });
+      run.on('textDelta', async (textDelta) => {
+        console.log(textDelta)
+        const responseText = (textDelta.value + " ").trimStart();
+        console.log('Received text delta:', responseText);
+        // await delay(500);
+        await sendTextForAudioGeneration(socket, responseText);
       });
+
+      console.log('Listener 1 Activated');
+      await handleRunStatuses(run);
+      await run.finalMessages();
+      await sendTextForAudioGeneration(socket, "");
+
+      return outputStream; // Return the audio stream
+    } catch (error) {
+      console.error("Error generating AI response and audio:", error);
+      throw error;
     }
   }
 
+  async function addMessageToThread(newMessage: string) {
+    console.log('Adding message to thread...');
+    return await openai.beta.threads.messages.create(callThread, {
+      role: "user",
+      content: newMessage
+    });
+  }
+
+  async function startNewRun() {
+    console.log('Starting new run...');
+    try {
+      const run = openai.beta.threads.runs.createAndStream(callThread, {
+        assistant_id: context.OPENAI_ASSISTANT_ID,
+      });
+      return run;
+    } catch (error) {
+      console.error("Error starting new run:", error);
+      throw error;
+    }
+  }
+  function delay(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  async function handleRunStatuses(run: any) {
+    console.log('Handling run statuses...');
+    return new Promise<void>((resolve, reject) => {
+      run.on('runStepCreated', async (runStep: any) => {
+        if (runStep.status === "requires_action" && runStep.required_action) {
+          try {
+            // Submit tool outputs
+            await openai.beta.threads.runs.submitToolOutputs(callThread, run.id, {
+              tool_outputs: [
+                {
+                  tool_call_id: runStep.required_action.submit_tool_outputs.tool_calls[0].id,
+                  output: "true",
+                },
+              ],
+            });
+          } catch (error) {
+            reject(error);
+          }
+        }
+      });
+
+      run.on('end', () => {
+        // Resolve the promise when the stream ends
+        resolve();
+      });
+
+      // Handle errors
+      run.on('error', (error: any) => {
+        reject(error);
+      });
+    });
+  }
+}
