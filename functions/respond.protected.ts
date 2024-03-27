@@ -22,7 +22,6 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   const newMessage = event.SpeechResult;
 
   if (!newMessage) {
-    twiml_response.say({ voice: "Polly.Joanna-Neural" }, "Sorry, I didn't catch that.");
     twiml_response.redirect({ method: "POST" }, "/transcribe");
     return callback(null, twiml_response)
   }
