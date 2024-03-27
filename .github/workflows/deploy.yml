@@ -37,6 +37,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
         run: twilio serverless:deploy --environment ${{ github.ref_name }} > deployment_output.txt
       - name: Update phone number voice and statusCallback urls
         env:
