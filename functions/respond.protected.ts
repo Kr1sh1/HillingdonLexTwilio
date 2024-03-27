@@ -87,7 +87,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
     }
     return filterResults(results)
   }
-
+//
   function filterResults(results: ToolOutput[]) {
     const promises = results.flatMap(result => result.functionOutput.promises ?? [])
     let action = AIAction.NONE
