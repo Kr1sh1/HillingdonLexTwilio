@@ -29,7 +29,9 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
 
   const aiResponse = await generateAIResponse(newMessage);
 
+  console.log("Awaiting all promises...")
   const [audioUrl] = await Promise.all([aiResponse.audioUrl, ...aiResponse.promises])
+  console.log("Successfully awaited promises")
 
   if (audioUrl !== "NoURL")
     twiml_response.play(audioUrl);
@@ -56,7 +58,11 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
 
       await addMessageToThread(openai, callThread, newMessage);
 
+      console.log(callThread)
+      console.log(context.OPENAI_ASSISTANT_ID)
       let assistantStream = await startNewStreamingRun(openai, callThread, context.OPENAI_ASSISTANT_ID)
+      console.log(assistantStream)
+      console.log("Assistant stream started")
 
       let textBuffer = ""
       const wordPattern = /\b\S+\s+/g
@@ -64,17 +70,25 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
       let loop = false
       do {
         loop = false
+        console.log("Starting async iteration")
         for await (const event of assistantStream) {
+          console.log("Event:Event: ", event.event)
+          console.log("Event:Data: ", event.data)
+          console.log("Event: ", event)
+          console.log(`keys: ${Object.keys(event)}`)
+          console.log(`values: ${Object.values(event)}`)
           if (event.event === "thread.message.delta" && event.data.delta.content && event.data.delta.content[0].type === "text") {
             const delta = event.data.delta.content[0].text?.value
             if (!delta) continue
             textBuffer += delta
             const match = textBuffer.match(wordPattern)
             if (match?.length) {
+              console.log("Sending ElevenLabs data...")
               textBuffer = textBuffer.replace(wordPattern, "")
               socket.send(JSON.stringify({ text: match.join("") }));
             }
           } else if (event.event === "thread.message.completed") {
+            console.log("Message complete. Final message:", textBuffer)
             if (textBuffer !== "") socket.send(JSON.stringify({ text: textBuffer }));
             socket.send(JSON.stringify({ text: "" }));
           } else if (event.event === "thread.run.requires_action" && event.data.required_action?.type === "submit_tool_outputs") {
@@ -96,7 +110,9 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
 
       const result = filterResults(results)
 
+      console.log("Awaiting socket close")
       await socketClose
+      console.log("Socket closed")
       let audioUrl = Promise.resolve("NoURL")
       if (audioBuffer.length) {
         const audioFileKey = `${event.CallSid}:${new Date().getTime()}`
