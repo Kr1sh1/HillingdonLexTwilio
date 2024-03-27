@@ -4,7 +4,6 @@ class Response {
   constructor() {
     this._body = {};
     this._headers = {};
-    this._statusCode = 200;
     this._cookies = {}
     this._attributes = {}
   }
@@ -16,10 +15,6 @@ class Response {
   setCookie(key, value, attributes) {
       this._cookies[key] = value;
       this._attributes[key] = attributes;
-  }
-
-  setStatusCode(code) {
-    this._statusCode = code;
   }
 
   appendHeader(key, value) {
