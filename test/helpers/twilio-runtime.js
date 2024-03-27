@@ -28,16 +28,9 @@ class Response {
 }
 
 const setup = (context = {}) => {
-  global.Twilio = Twilio;
-
-  // Add here the code to extend Twilio Response
+  global.Twilio = Twilio || {};
+  
   global.Twilio.Response = Response;
-
-  // Create the new istance of Twilio Client based on ACCOUNT_SID and AUTH_TOKEN
-  if (context.API_KEY && context.API_SECRET && context.TWILIO_ACCOUNT_SID) {
-    // global.twilioClient = new Twilio(context.API_KEY, context.API_SECRET, {accountSid: context.TWILIO_ACCOUNT_SID});
-    context.getTwilioClient = () => new Twilio(context.API_KEY, context.API_SECRET, {accountSid: context.TWILIO_ACCOUNT_SID});
-  }
 };
 
 const teardown = () => {
