@@ -1,70 +1,43 @@
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { SendMessageBatchCommand, SendMessageBatchRequestEntry } from "@aws-sdk/client-sqs"
 import { Context } from "../types/types";
 import { fetchThreadConversation } from "./assistant";
 import { ClientManager } from "./clients";
 import { Tasks } from "../types/interfaces";
-import { Readable } from "stream";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import https from "https";
+import { StreamingBlobPayloadInputTypes } from "@smithy/types";
 
 export async function uploadConversationToS3(context: Context, callSid: string, threadId: string) {
   const openai = ClientManager.getOpenAIClient(context)
   const conversation = await fetchThreadConversation(openai, threadId, { order: "asc" })
-
   const s3Client = ClientManager.getS3Client(context)
+  await uploadObjectToS3(s3Client, context, context.AWS_S3_BUCKET, `${callSid}.json`, JSON.stringify(conversation))
+}
 
+export async function uploadAudioToS3(context: Context, audioFileName: string, buffer: Buffer) {
+  const awsConfig = ClientManager.getAWSConfig(context)
+  awsConfig.region = "us-east-1"
+  const s3Client = new S3Client(awsConfig)
+  await uploadObjectToS3(s3Client, context, "eleven-labs-bucket", audioFileName, buffer)
+}
+
+async function uploadObjectToS3(s3Client: S3Client, context: Context, bucketName: string, key: string, data: StreamingBlobPayloadInputTypes) {
   await s3Client.send(
     new PutObjectCommand({
-      Bucket: context.AWS_S3_BUCKET,
-      Key: `${callSid}.json`,
-      Body: JSON.stringify(conversation),
+      Bucket: bucketName,
+      Key: key,
+      Body: data,
     })
   );
 }
 
-export async function uploadAudioToS3(context: Context, callSid: string, audioStream: Readable) {
-  const s3Client = ClientManager.getS3Client(context);
-
-  // Generate presigned URL
-  const presignedUrl = await createPresignedUrlWithClient(s3Client,{
-    region: context.AWS_REGION,
-    bucket: context.AWS_S3_BUCKET,
-    key: `${callSid}.wav`, // Adjust file extension as needed
-  });
-
-  // Upload audio
-  await put(presignedUrl, audioStream);
-}
-
-const createPresignedUrlWithClient = (s3Client, { region, bucket, key }) => {
-  const client = s3Client;
-  const command = new PutObjectCommand({ Bucket: bucket, Key: key });
-  return getSignedUrl(client, command, { expiresIn: 3600 });
+export function createPresignedUrl(context: Context, Key: string) {
+  const awsConfig = ClientManager.getAWSConfig(context)
+  awsConfig.region = "us-east-1"
+  const s3Client = new S3Client(awsConfig)
+  const command = new GetObjectCommand({ Bucket: "eleven-labs-bucket", Key });
+  return getSignedUrl(s3Client, command, { expiresIn: 60 });
 };
-
-function put(url, data) {
-  return new Promise((resolve, reject) => {
-    const req = https.request(
-      url,
-      { method: "PUT", headers: { "Content-Length": new Blob([data]).size } },
-      (res) => {
-        let responseBody = "";
-        res.on("data", (chunk) => {
-          responseBody += chunk;
-        });
-        res.on("end", () => {
-          resolve(responseBody);
-        });
-      },
-    );
-    req.on("error", (err) => {
-      reject(err);
-    });
-    req.write(data);
-    req.end();
-  });
-}
 
 export async function uploadTaskstoSQS(context: Context, callSid: string, phoneNumber: string, tasks: Tasks) {
   const sqsClient = ClientManager.getSQSClient(context)

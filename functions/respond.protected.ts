@@ -1,11 +1,12 @@
 import { ServerlessFunctionSignature } from '@twilio-labs/serverless-runtime-types/types';
-import { RespondServerlessEventObject, TwilioEnvironmentVariables } from './types/interfaces';
+import { AIResponse, RespondServerlessEventObject, ToolOutput, TwilioEnvironmentVariables } from './types/interfaces';
 import { ClientManager } from "./helpers/clients";
-import { WriteStream} from 'fs';
-import { Writable } from 'stream';
-import { WebSocket } from "ws"
-import {uploadAudioToS3} from "./helpers/aws";
-
+import { initializeElevenLabsSocket } from './helpers/eleven';
+import { AIAction } from './types/enums';
+import { addMessageToThread, startNewStreamingRun } from './helpers/assistant';
+import { RequiredActionFunctionToolCall } from 'openai/resources/beta/threads';
+import { taskProcessors } from './helpers/tasks';
+import { createPresignedUrl, uploadAudioToS3 } from './helpers/aws';
 
 export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, RespondServerlessEventObject> = async function (
   context,
@@ -16,181 +17,123 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
 
   const openai = ClientManager.getOpenAIClient(context);
   const twiml_response = new Twilio.twiml.VoiceResponse();
-  const response = new Twilio.Response();
+
   const cookies = event.request.cookies;
   const callThread = cookies.threadID;
   const newMessage = event.SpeechResult;
-  const voiceId = context.VOICE_ID;
-  const model = 'eleven_multilingual_v2';
 
-  const audio = await generateAIResponse(newMessage);
-  const signedAudiolink = await uploadAudioToS3(audio);
-
-  twiml_response.play(signedAudiolink);
-
-  twiml_response.redirect({
-      method: "POST",
-    },
-    `/transcribe`
-  );
-  response.appendHeader("Content-Type", "application/xml");
-  response.setBody(twiml_response.toString());
-
-  return callback(null, response);
-
-  function initializeWebSocketConnection(outputStream: WriteStream): WebSocket {
-    const wsUrl = `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input?model_id=${model}`;
-    const socket = new WebSocket(wsUrl);
-    const bosMessage = {
-      "text": " ",
-      "voice_settings": {
-        "stability": 0.5,
-        "similarity_boost": 0.8
-      },
-      "xi_api_key": context.apiKey,
-    };
-
-    socket.onopen = () => {
-      console.log('WebSocket connection opened...');
-      // Send the bosMessage when the connection is opened
-      socket.send(JSON.stringify(bosMessage));
-    };
-
-    socket.onerror = (error) => {
-      console.error(`WebSocket Error: ${error.message}`);
-      outputStream.close();
-    };
-
-    socket.onclose = (event) => {
-      if (event.wasClean) {
-        console.info(`Connection closed cleanly, code=${event.code}, reason=${event.reason}`);
-      } else {
-        console.warn('Connection died');
-      }
-    };
-
-    socket.onmessage = (event) => {
-      const response = JSON.parse(event.data.toString());
-
-      console.log("Server responded");
-
-      if (response.audio) {
-        const audioChunk = Buffer.from(response.audio, 'base64');
-        outputStream.write(audioChunk);
-      } else {
-        console.log("No audio data in the response");
-      }
-
-      if (response.isFinal) {
-        outputStream.end();
-        socket.close();
-      }
-    };
-
-    return socket;
+  if (!newMessage) {
+    twiml_response.redirect({ method: "POST" }, "/transcribe");
+    return callback(null, twiml_response)
   }
 
-  async function sendTextForAudioGeneration(socket: WebSocket, text: string): Promise<void> {
-    const message = {
-      text,
-      "voice_settings": {
-        "stability": 0.5,
-        "similarity_boost": 0.8
-      },
-      // flush: text === ""
-    };
-    console.log("send: ", text)
-    socket.send(JSON.stringify(message));
+  const aiResponse = await generateAIResponse(newMessage);
+
+  const [audioUrl] = await Promise.all([aiResponse.audioUrl, ...aiResponse.promises])
+
+  if (audioUrl)
+    twiml_response.play(audioUrl);
+
+  switch (aiResponse.action) {
+    case AIAction.NONE:
+      twiml_response.redirect({ method: "POST" }, "/transcribe");
+      break;
+    case AIAction.TRANSFER:
+      twiml_response
+        .dial({ timeout: 10 })
+        .number({ statusCallback: "/statusCallback", statusCallbackEvent: ["initiated"] }, "+448088127045")
+      break
+    case AIAction.TERMINATE:
+      break
   }
 
-  async function generateAIResponse(newMessage: string): Promise<void> {
-    console.log('Inside generateAIResponseAndAudio function...');
+  return callback(null, twiml_response);
+
+  async function generateAIResponse(newMessage: string): Promise<AIResponse> {
     try {
-       const outputStream = new Writable({
-            write(chunk, encoding, callback) {
-                console.log('Received audio chunk:', chunk);
-                callback();
+      const audioBuffer: Buffer[] = []
+      const { socket, socketClose } = initializeElevenLabsSocket(audioBuffer, context.ELEVENLABS_API_KEY, context.VOICE_ID);
+
+      await addMessageToThread(openai, callThread, newMessage);
+
+      let assistantStream = await startNewStreamingRun(openai, callThread, context.OPENAI_ASSISTANT_ID)
+
+      let textBuffer = ""
+      const wordPattern = /\b\S+\s+/g
+      let results: ToolOutput[] = []
+      let loop = false
+      do {
+        loop = false
+        for await (const event of assistantStream) {
+          if (event.event === "thread.message.delta" && event.data.delta.content && event.data.delta.content[0].type === "text") {
+            const delta = event.data.delta.content[0].text?.value
+            if (!delta) continue
+            textBuffer += delta
+            const match = textBuffer.match(wordPattern)
+            if (match?.length) {
+              textBuffer = textBuffer.replace(wordPattern, "")
+              socket.send(JSON.stringify({ text: match.join("") }));
             }
-       });
-      const socket = initializeWebSocketConnection(outputStream);
+          } else if (event.event === "thread.message.completed") {
+            if (textBuffer !== "") socket.send(JSON.stringify({ text: textBuffer }));
+            socket.send(JSON.stringify({ text: "" }));
+          } else if (event.event === "thread.run.requires_action" && event.data.required_action?.type === "submit_tool_outputs") {
+            const outputs = processToolCalls(event.data.required_action.submit_tool_outputs.tool_calls)
+            results = results.concat(outputs)
+            assistantStream = await openai.beta.threads.runs.submitToolOutputs(callThread, event.data.id, {
+              tool_outputs: outputs.map(output => {
+                return {
+                  tool_call_id: output.id,
+                  output: output.functionOutput.response
+                }
+              }),
+              stream: true
+            });
+            loop = true
+          }
+        }
+      } while (loop)
 
-      await addMessageToThread(newMessage);
-      const run = await startNewRun();
+      const result = filterResults(results)
 
-      run.on('textDelta', async (textDelta) => {
-        console.log(textDelta)
-        const responseText = (textDelta.value + " ").trimStart();
-        console.log('Received text delta:', responseText);
-        // await delay(500);
-        await sendTextForAudioGeneration(socket, responseText);
-      });
+      await socketClose
+      let audioUrl = Promise.resolve("")
+      if (audioBuffer.length) {
+        const audioFileKey = `${event.CallSid}:${new Date().getTime()}`
+        audioUrl = uploadAudioToS3(context, audioFileKey, Buffer.concat(audioBuffer))
+          .then(() => createPresignedUrl(context, audioFileKey))
+      }
 
-      console.log('Listener 1 Activated');
-      await handleRunStatuses(run);
-      await run.finalMessages();
-      await sendTextForAudioGeneration(socket, "");
-
-      return outputStream; // Return the audio stream
+      return {
+        audioUrl,
+        ...result
+      }
     } catch (error) {
       console.error("Error generating AI response and audio:", error);
       throw error;
     }
   }
 
-  async function addMessageToThread(newMessage: string) {
-    console.log('Adding message to thread...');
-    return await openai.beta.threads.messages.create(callThread, {
-      role: "user",
-      content: newMessage
-    });
-  }
-
-  async function startNewRun() {
-    console.log('Starting new run...');
-    try {
-      const run = openai.beta.threads.runs.createAndStream(callThread, {
-        assistant_id: context.OPENAI_ASSISTANT_ID,
-      });
-      return run;
-    } catch (error) {
-      console.error("Error starting new run:", error);
-      throw error;
+  function filterResults(results: ToolOutput[]) {
+    const promises = results.flatMap(result => result.functionOutput.promises ?? [])
+    let action = AIAction.NONE
+    for (const result of results) {
+      if (result.functionOutput.action !== AIAction.NONE) {
+        action = result.functionOutput.action
+        break
+      }
     }
-  }
-  function delay(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return { action, promises }
   }
 
-  async function handleRunStatuses(run: any) {
-    console.log('Handling run statuses...');
-    return new Promise<void>((resolve, reject) => {
-      run.on('runStepCreated', async (runStep: any) => {
-        if (runStep.status === "requires_action" && runStep.required_action) {
-          try {
-            // Submit tool outputs
-            await openai.beta.threads.runs.submitToolOutputs(callThread, run.id, {
-              tool_outputs: [
-                {
-                  tool_call_id: runStep.required_action.submit_tool_outputs.tool_calls[0].id,
-                  output: "true",
-                },
-              ],
-            });
-          } catch (error) {
-            reject(error);
-          }
-        }
-      });
-
-      run.on('end', () => {
-        // Resolve the promise when the stream ends
-        resolve();
-      });
-
-      // Handle errors
-      run.on('error', (error: any) => {
-        reject(error);
-      });
-    });
+  function processToolCalls(toolCalls: RequiredActionFunctionToolCall[]): ToolOutput[] {
+    return toolCalls.map((tool_call) => {
+      const parameters = JSON.parse(tool_call.function.arguments)
+      const processor = taskProcessors[tool_call.function.name]
+      return {
+        id: tool_call.id,
+        functionOutput: processor(parameters, context, event),
+      }
+    })
   }
 }

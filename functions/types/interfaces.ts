@@ -73,7 +73,7 @@ export interface Message {
 }
 
 export interface AIResponse {
-  text: string;
+  audioUrl: Promise<string>;
   action: AIAction;
   promises: Promise<any>[];
 }

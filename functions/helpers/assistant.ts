@@ -37,6 +37,6 @@ export function addMessageToThread(openai: OpenAI, threadId: string, message: st
   });
 }
 
-export function startNewRun(openai: OpenAI, threadId: string, assistantId: string) {
-  return openai.beta.threads.runs.create(threadId, { assistant_id: assistantId });
+export function startNewStreamingRun(openai: OpenAI, threadId: string, assistantId: string) {
+  return openai.beta.threads.runs.create(threadId, { assistant_id: assistantId, stream: true });
 }
