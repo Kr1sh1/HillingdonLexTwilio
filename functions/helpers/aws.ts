@@ -36,7 +36,7 @@ export function createPresignedUrl(context: Context, Key: string) {
   awsConfig.region = "us-east-1"
   const s3Client = new S3Client(awsConfig)
   const command = new GetObjectCommand({ Bucket: "eleven-labs-bucket", Key });
-  return getSignedUrl(s3Client, command, { expiresIn: 60 });
+  return getSignedUrl(s3Client, command, { expiresIn: 180 });
 };
 
 export async function uploadTaskstoSQS(context: Context, callSid: string, phoneNumber: string, tasks: Tasks) {
