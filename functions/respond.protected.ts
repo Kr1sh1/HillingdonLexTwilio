@@ -31,7 +31,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
 
   const [audioUrl] = await Promise.all([aiResponse.audioUrl, ...aiResponse.promises])
 
-  if (audioUrl)
+  if (audioUrl !== "NoURL")
     twiml_response.play(audioUrl);
 
   switch (aiResponse.action) {
@@ -97,7 +97,7 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
       const result = filterResults(results)
 
       await socketClose
-      let audioUrl = Promise.resolve("")
+      let audioUrl = Promise.resolve("NoURL")
       if (audioBuffer.length) {
         const audioFileKey = `${event.CallSid}:${new Date().getTime()}`
         audioUrl = uploadAudioToS3(context, audioFileKey, Buffer.concat(audioBuffer))
