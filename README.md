@@ -3,11 +3,13 @@
 ## Project Structure
 Twilio Functions is a serverless environment.
 
-Every TypeScript function under `/functions` is deployed individually to a unique URL. An extension of `.protected.ts` ensures the deployed function is only invokable by Twilio webhooks. Each function can reference each other relatively from under the `/functions` directory.
+Every TypeScript function directly under `/functions` (/functions/*.ts) is deployed individually to a unique URL. Functions that are within subfolders are not deployed as individual serverless functions, rather they are bundled into the actual serverless functions. An extension of `.protected.ts` ensures the deployed function is only invokable by Twilio webhooks. Each function can reference each other relatively from under the `/functions` directory.
 
 The `transcribe` function is invoked when an inbound phone call is received, this behaviour is currently hardcoded in the deploy workflow but can become configurable.
 
-The `statusCallback` function is invoked whenever the status of a phone call changes. Again, this is hardcoded in the deploy workflow. Typically we are only interested in when the phone call is completed successfully.
+The `respond` function is invoked by the `transcribe` function after transcription is completed of the callers speech. This function is responsible for interacting with various services such as OpenAI, ElevenLabs and Twilio Sync.
+
+The `statusCallback` function is invoked whenever the status of a phone call changes. Again, this is hardcoded in the deploy workflow. Typically we are only interested in when the phone call is completed successfully. The function is responsible for uploading the transcript to S3, adding call records to our database, and initiating processing of all tasks that have been accumulated during the phone call by sending them to Amazon SQS.
 
 ## Getting Started
 
