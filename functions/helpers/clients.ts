@@ -12,7 +12,7 @@ export class ClientManager {
   private static twilioClient: Twilio | null = null;
   private static syncClient: ServiceContext | null = null;
 
-  private static getAWSConfig(context: Context) {
+  public static getAWSConfig(context: Context) {
     return {
       region: context.AWS_REGION,
       credentials: {

@@ -6,6 +6,8 @@ import { ClientManager } from "./helpers/clients";
 import { addMessageToThread, fetchAssistantResponse, startNewRun } from './helpers/assistant';
 import { AIAction } from './types/enums';
 import { taskProcessors } from './helpers/tasks';
+import { getAudioFromText } from './helpers/elevenLabs';
+import { createPresignedUrl, uploadAudioToS3 } from './helpers/aws';
 
 export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, RespondServerlessEventObject> = async function (
   context,
@@ -27,9 +29,10 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
   }
 
   const aiResponse = await generateAIResponse(newMessage);
-  const cleanedAiResponse = aiResponse.text.replace(/^\w+:\s*/i, "").trim();
+  const [audioUrl] = await Promise.all([aiResponse.audioUrl, ...aiResponse.promises])
 
-  twiml_response.say({ voice: "Polly.Joanna-Neural" }, cleanedAiResponse);
+  if (audioUrl !== "NoURL")
+    twiml_response.play(audioUrl);
 
   switch (aiResponse.action) {
     case AIAction.NONE:
@@ -54,8 +57,22 @@ export const handler: ServerlessFunctionSignature<TwilioEnvironmentVariables, Re
       const run = await startNewRun(openai, threadId, context.OPENAI_ASSISTANT_ID)
       const result = await waitForRunCompletion(run);
       const text = await fetchAssistantResponse(openai, threadId, message)
+
+      if (!text.length) {
+        return {
+          audioUrl: Promise.resolve("NoURL"),
+          ...result
+        }
+      }
+
+      const audio = await getAudioFromText(text, context)
+      const audioFileKey = `${event.CallSid}:${new Date().getTime()}`
+      const audioUrl = uploadAudioToS3(context, audioFileKey, audio)
+        .then(() => createPresignedUrl(context, audioFileKey))
+
+      // console.log(audio)
       return {
-        text,
+        audioUrl,
         ...result
       }
     } catch (error) {
