@@ -95,3 +95,7 @@ Pushing anything to these branches results in a fresh deployment.
 |main|+44 78621 32308|
 |dev1|+44 74888 90677|
 |dev2|+44 74888 98879|
+
+### Testing
+The helpers/twilio-runtime.js file is an extension on https://github.com/vernig/twilio-unit-testing-serverless (github repostiory on how to perform unit testing with jest)
+
